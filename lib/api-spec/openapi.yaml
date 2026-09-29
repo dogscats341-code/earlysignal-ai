@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: earlysignal
+    description: EarlySignal AI demo workspace operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,74 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /earlysignal/workspace:
+    get:
+      operationId: getEarlySignalWorkspace
+      tags: [earlysignal]
+      summary: Get the EarlySignal workspace
+      description: Returns database-backed workspace data, or the centralized demo dataset when DEMO_MODE is enabled or the database is empty.
+      responses:
+        "200":
+          description: EarlySignal workspace
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EarlySignalWorkspace"
+  /earlysignal/monitors:
+    post:
+      operationId: createEarlySignalMonitor
+      tags: [earlysignal]
+      summary: Create a Product Price monitor
+      description: Creates a monitor in the EarlySignal database. This MVP only accepts Product Price.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MonitorInput"
+      responses:
+        "201":
+          description: Created monitor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Monitor"
+        "400":
+          description: Invalid monitor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /earlysignal/monitors/{id}/status:
+    patch:
+      operationId: updateEarlySignalMonitorStatus
+      tags: [earlysignal]
+      summary: Update monitor status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MonitorStatusInput"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated monitor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Monitor"
+        "404":
+          description: Monitor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +103,114 @@ components:
           type: string
       required:
         - status
+    Monitor:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        websiteUrl:
+          type: string
+        monitorType:
+          type: string
+          enum: [Product Price, Product Availability, Product Catalog, Website Content]
+        status:
+          type: string
+          enum: [active, paused]
+        createdAt:
+          type: string
+          format: date-time
+        lastChecked:
+          type: string
+          format: date-time
+      required: [id, name, websiteUrl, monitorType, status, createdAt, lastChecked]
+    Change:
+      type: object
+      properties:
+        id:
+          type: string
+        monitorId:
+          type: string
+        changeType:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        oldValue:
+          type: string
+        newValue:
+          type: string
+        severity:
+          type: string
+          enum: [Low, Medium, High]
+        sourceUrl:
+          type: string
+        detectedAt:
+          type: string
+          format: date-time
+      required: [id, monitorId, changeType, title, description, oldValue, newValue, severity, sourceUrl, detectedAt]
+    AIAnalysis:
+      type: object
+      properties:
+        id:
+          type: string
+        changeId:
+          type: string
+        summary:
+          type: string
+        whyItMatters:
+          type: string
+        suggestedAction:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, changeId, summary, whyItMatters, suggestedAction, createdAt]
+    EarlySignalWorkspace:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [database, demo]
+        monitors:
+          type: array
+          items:
+            $ref: "#/components/schemas/Monitor"
+        changes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Change"
+        analyses:
+          type: array
+          items:
+            $ref: "#/components/schemas/AIAnalysis"
+      required: [mode, monitors, changes, analyses]
+    MonitorInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        websiteUrl:
+          type: string
+          minLength: 1
+        monitorType:
+          type: string
+          enum: [Product Price]
+      required: [name, websiteUrl, monitorType]
+    MonitorStatusInput:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [active, paused]
+      required: [status]
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
 

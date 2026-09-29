@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
+    "seed:earlysignal": "tsx ./src/seed-earlysignal.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
+    "@workspace/db": "workspace:*",
+    "@workspace/earlysignal-demo": "workspace:*",
     "@types/node": "catalog:",
     "tsx": "catalog:"
   }

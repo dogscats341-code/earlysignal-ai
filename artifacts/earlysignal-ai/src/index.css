@@ -164,6 +164,7 @@
 .signal-time { color: #68768b; font: 10px var(--app-font-mono); white-space: nowrap; }
 .pill { align-items: center; border: 1px solid transparent; border-radius: 999px; display: inline-flex; font: 10px var(--app-font-mono); gap: 5px; letter-spacing: .05em; padding: 4px 8px; text-transform: uppercase; }
 .pill-demo { color: var(--amber); border-color: rgba(239,189,113,.23); background: rgba(239,189,113,.07); }
+.pill-soon { color: #b9a7f7; border-color: rgba(185,167,247,.25); background: rgba(185,167,247,.08); }
 .pill-active { color: var(--cyan); border-color: rgba(88,224,208,.23); background: rgba(88,224,208,.07); }
 .pill-paused { color: #a4afc0; border-color: rgba(164,175,192,.22); background: rgba(164,175,192,.07); }
 .pill-high { color: var(--coral); border-color: rgba(250,129,125,.23); background: rgba(250,129,125,.07); }

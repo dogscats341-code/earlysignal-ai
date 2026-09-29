@@ -135,7 +135,7 @@ export function DashboardPage() {
 function MonitorCard({ monitor, changes }: { monitor: Monitor; changes: Change[] }) {
   return <article className="card monitor-card" data-testid={`card-monitor-${monitor.id}`}>
     <div className="monitor-card-top"><div style={{ display: 'flex', gap: 12, minWidth: 0 }}><div className="monitor-symbol"><Globe2 size={18} /></div><div style={{ minWidth: 0 }}><h2 className="monitor-name">{monitor.name}</h2><a className="monitor-url" href={monitor.websiteUrl} target="_blank" rel="noreferrer" data-testid={`link-monitor-url-${monitor.id}`}>{monitor.websiteUrl.replace('https://', '')} <ExternalLink size={9} style={{ display: 'inline' }} /></a></div></div><StatusBadge status={monitor.status} /></div>
-    <div className="monitor-tags"><span className="pill pill-active"><Tag size={10} /> {monitor.monitorType}</span><DemoBadge /></div>
+    <div className="monitor-tags"><span className="pill pill-active"><Tag size={10} /> {monitor.monitorType}</span>{monitor.monitorType !== 'Product Price' && <span className="pill pill-soon">Coming soon</span>}<DemoBadge /></div>
     <div className="monitor-facts"><div><span className="fact-label">Last checked</span><span className="fact-value">{formatDateTime(monitor.lastChecked)}</span></div><div style={{ textAlign: 'right' }}><span className="fact-label">Detected changes</span><span className="fact-value">{String(changes.length).padStart(2, '0')}</span></div></div>
     <div className="monitor-actions"><Link href="/monitors/new" className="btn btn-ghost btn-sm" style={{ flex: 1 }} data-testid={`link-add-monitor-card-${monitor.id}`}><Plus size={13} /> Add monitor</Link><Link href={`/monitors/${monitor.id}`} className="btn btn-ghost btn-sm" style={{ flex: 1 }} data-testid={`link-view-monitor-${monitor.id}`}>View monitor <ChevronRight size={13} /></Link></div>
   </article>;
@@ -159,7 +159,7 @@ export function NewMonitorPage() {
   const [websiteUrl, setWebsiteUrl] = useState('');
   const [monitorType, setMonitorType] = useState<MonitorType>('Product Price');
   const [error, setError] = useState('');
-  const submit = (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!name.trim()) return setError('Add a name so you can recognize this monitor later.');
     try {
@@ -169,8 +169,12 @@ export function NewMonitorPage() {
       setError('Enter a complete website URL, including https://');
       return;
     }
-    const monitor = addMonitor({ name: name.trim(), websiteUrl: websiteUrl.trim(), monitorType });
-    setLocation(`/monitors/${monitor.id}`);
+    try {
+      const monitor = await addMonitor({ name: name.trim(), websiteUrl: websiteUrl.trim(), monitorType });
+      setLocation(`/monitors/${monitor.id}`);
+    } catch {
+      setError('The monitor could not be saved. Check that the database is available and try again.');
+    }
   };
   return <AppPage>
     <PageIntro eyebrow="Workspace / monitors / new" title="Add a monitor" description="Define one focused watch. This demo adds it to your workspace immediately; no live connection is created." action={<DemoBadge />} />
@@ -179,7 +183,7 @@ export function NewMonitorPage() {
         <div className="callout" style={{ marginBottom: 24 }}><strong>Demo-only workspace.</strong> Your monitor will appear instantly with a current timestamp. It will not fetch or monitor a live site.</div>
         <div className="field"><label htmlFor="monitor-name">Monitor Name</label><input id="monitor-name" className="input" value={name} onChange={(event) => { setName(event.target.value); setError(''); }} placeholder="e.g. Northstar Home Goods" data-testid="input-monitor-name" /><span className="field-hint">Use a name your future self can scan in one second.</span></div>
         <div className="field"><label htmlFor="website-url">Website URL</label><input id="website-url" className="input" value={websiteUrl} onChange={(event) => { setWebsiteUrl(event.target.value); setError(''); }} placeholder="https://example.com" data-testid="input-website-url" /><span className="field-hint">A complete URL is required for a valid demo monitor.</span></div>
-        <div className="field"><label htmlFor="monitor-type">Monitor Type</label><select id="monitor-type" className="select" style={{ width: '100%' }} value={monitorType} onChange={(event) => setMonitorType(event.target.value as MonitorType)} data-testid="select-monitor-type"><option>Product Price</option><option>Product Availability</option><option>Product Catalog</option><option>Website Content</option></select></div>
+        <div className="field"><label htmlFor="monitor-type">Monitor Type</label><select id="monitor-type" className="select" style={{ width: '100%' }} value={monitorType} onChange={(event) => setMonitorType(event.target.value as MonitorType)} data-testid="select-monitor-type"><option value="Product Price">Product Price</option><option value="Product Availability" disabled>Product Availability — Coming Soon</option><option value="Product Catalog" disabled>Product Catalog — Coming Soon</option><option value="Website Content" disabled>Website Content — Coming Soon</option></select><span className="field-hint">Product Price is available in this phase. Other monitor types are coming soon.</span></div>
         {error && <div className="form-error" role="alert" data-testid="text-monitor-form-error"><TriangleAlert size={13} style={{ verticalAlign: 'middle', marginRight: 5 }} />{error}</div>}
         <div className="form-actions"><Link href="/monitors" className="btn btn-ghost" data-testid="button-cancel-monitor"><X size={14} /> Cancel</Link><button className="btn btn-primary" type="submit" data-testid="button-create-monitor"><Check size={14} /> Create monitor</button></div>
       </form>
