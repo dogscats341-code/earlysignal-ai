@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "EarlySignal AI"
+description = "A demo early-warning dashboard for small e-commerce businesses to review what changed across competitor and website monitors before it becomes a problem."
+version = "1.0.0"
+id = "artifacts/earlysignal-ai"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23774
+
+[services.development]
+run = "pnpm --filter @workspace/earlysignal-ai run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/earlysignal-ai", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/earlysignal-ai/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23774"
+BASE_PATH = "/"

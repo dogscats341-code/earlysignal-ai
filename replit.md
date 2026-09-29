@@ -1,6 +1,6 @@
-# [Project name]
+# EarlySignal AI
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+EarlySignal AI is a demo-only early-warning dashboard that helps small e-commerce businesses review prepared changes before deciding what deserves attention.
 
 ## Run & Operate
 
@@ -22,23 +22,28 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/earlysignal-ai/src/lib/demo-data.ts` — centralized demo monitors, changes, analyses, derived selectors, and frontend state.
+- `artifacts/earlysignal-ai/src/components/earlysignal-shell.tsx` — shared navigation shell, badges, page headers, and empty states.
+- `artifacts/earlysignal-ai/src/pages/earlysignal-pages.tsx` — landing, dashboard, monitor, alert, change detail, settings, and fallback pages.
+- `artifacts/earlysignal-ai/src/index.css` — app theme, responsive layout, component styling, focus states, and motion.
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The first MVP is intentionally frontend-only; prepared demo data is kept in a provider so the UI can later swap to API-backed repositories without duplicating entity shapes.
+- Demo signals, source URLs, and AI explanations are explicitly labeled throughout the experience to avoid implying live monitoring or real-world analysis.
+- Monitor creation and pause/resume are local state interactions only; no external pages are fetched.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+The app lets users move from a landing page into a dashboard, review prepared monitor signals, create a demo monitor, inspect change history, open a change, and read cautious Demo AI Analysis. Alerts and settings make the demo workspace feel complete while clearly stating its limitations.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Keep the product clearly framed as demo data until live monitoring, authentication, notifications, and AI services are explicitly added.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- The frontend artifact workflow provides `PORT` and `BASE_PATH`; direct production builds need both values set in the shell.
 
 ## Pointers
 
