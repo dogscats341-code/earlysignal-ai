@@ -24,6 +24,7 @@ import type {
   ErrorResponse,
   HealthStatus,
   Monitor,
+  MonitorCheckResult,
   MonitorInput,
   MonitorStatusInput
 } from './api.schemas';
@@ -387,5 +388,80 @@ export const useUpdateEarlySignalMonitorStatus = <TError = ErrorType<ErrorRespon
         TContext
       > => {
       return useMutation(getUpdateEarlySignalMonitorStatusMutationOptions(options));
+    }
+
+export const getCheckEarlySignalMonitorUrl = (id: string,) => {
+
+
+
+
+  return `/api/check/${id}`
+}
+
+/**
+ * Fetches the monitor website and records a price change when the extracted value differs from its previous value.
+ * @summary Check a monitor now
+ */
+export const checkEarlySignalMonitor = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<MonitorCheckResult> => {
+
+  return customFetch<MonitorCheckResult>(getCheckEarlySignalMonitorUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCheckEarlySignalMonitorMutationKey = () => ['checkEarlySignalMonitor'] as const;
+
+export const getCheckEarlySignalMonitorMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkEarlySignalMonitor>>, TError,CheckEarlySignalMonitorMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof checkEarlySignalMonitor>>, TError,CheckEarlySignalMonitorMutationVariables, TContext> => {
+
+const mutationKey = getCheckEarlySignalMonitorMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof checkEarlySignalMonitor>>, CheckEarlySignalMonitorMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  checkEarlySignalMonitor(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CheckEarlySignalMonitorMutationResult = NonNullable<Awaited<ReturnType<typeof checkEarlySignalMonitor>>>
+
+    export type CheckEarlySignalMonitorMutationError = ErrorType<ErrorResponse>
+    export type CheckEarlySignalMonitorMutationVariables = {id: string}
+
+    /**
+ * @summary Check a monitor now
+ */
+export const useCheckEarlySignalMonitor = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkEarlySignalMonitor>>, TError,CheckEarlySignalMonitorMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof checkEarlySignalMonitor>>,
+        TError,
+        CheckEarlySignalMonitorMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCheckEarlySignalMonitorMutationOptions(options));
     }
 

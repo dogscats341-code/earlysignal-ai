@@ -1,5 +1,7 @@
 import {
+  type MonitorCheckResult,
   getGetEarlySignalWorkspaceQueryKey,
+  useCheckEarlySignalMonitor,
   useCreateEarlySignalMonitor,
   useGetEarlySignalWorkspace,
   useUpdateEarlySignalMonitorStatus,
@@ -31,6 +33,7 @@ type DemoContextValue = {
   analyses: AIAnalysis[];
   addMonitor: (data: Pick<Monitor, 'name' | 'websiteUrl' | 'monitorType'>) => Promise<Monitor>;
   toggleMonitorStatus: (id: string) => Promise<Monitor>;
+  checkMonitor: (id: string) => Promise<MonitorCheckResult>;
   getMonitor: (id?: string) => Monitor | undefined;
   getChange: (id?: string) => Change | undefined;
   getAnalysis: (changeId?: string) => AIAnalysis | undefined;
@@ -49,6 +52,7 @@ export function DemoDataProvider({ children }: { children: ReactNode }) {
   });
   const createMonitorMutation = useCreateEarlySignalMonitor();
   const updateStatusMutation = useUpdateEarlySignalMonitorStatus();
+  const checkMonitorMutation = useCheckEarlySignalMonitor();
   const workspace = workspaceQuery.data;
   const monitors = workspace?.monitors ?? DEMO_MONITORS;
   const changes = workspace?.changes ?? DEMO_CHANGES;
@@ -89,6 +93,11 @@ export function DemoDataProvider({ children }: { children: ReactNode }) {
         await refreshWorkspace();
         return updated;
       },
+      checkMonitor: async (id) => {
+        const result = await checkMonitorMutation.mutateAsync({ id });
+        await refreshWorkspace();
+        return result;
+      },
       getMonitor: (id) => monitors.find((monitor) => monitor.id === id),
       getChange: (id) => changes.find((change) => change.id === id),
       getAnalysis: (changeId) => analyses.find((analysis) => analysis.changeId === changeId),
@@ -97,6 +106,7 @@ export function DemoDataProvider({ children }: { children: ReactNode }) {
     analyses,
     changes,
     createMonitorMutation,
+    checkMonitorMutation,
     mode,
     monitors,
     queryClient,

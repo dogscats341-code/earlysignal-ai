@@ -8,12 +8,15 @@
 
 export * from './aIAnalysis';
 export * from './change';
+export * from './changeDataSource';
 export * from './changeSeverity';
 export * from './earlySignalWorkspace';
 export * from './earlySignalWorkspaceMode';
 export * from './errorResponse';
 export * from './healthStatus';
 export * from './monitor';
+export * from './monitorCheckResult';
+export * from './monitorCheckSource';
 export * from './monitorInput';
 export * from './monitorInputMonitorType';
 export * from './monitorMonitorType';

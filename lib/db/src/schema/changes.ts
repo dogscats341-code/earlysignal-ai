@@ -15,6 +15,7 @@ export const changesTable = pgTable("changes", {
   newValue: text("new_value").notNull(),
   severity: text("severity").notNull(),
   sourceUrl: text("source_url").notNull(),
+  dataSource: text("data_source").notNull().default("demo"),
   detectedAt: timestamp("detected_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

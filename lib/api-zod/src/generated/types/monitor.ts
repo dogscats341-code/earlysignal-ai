@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { MonitorCheckSource } from './monitorCheckSource';
 import type { MonitorMonitorType } from './monitorMonitorType';
 import type { MonitorStatus } from './monitorStatus';
 
@@ -14,6 +15,9 @@ export interface Monitor {
   websiteUrl: string;
   monitorType: MonitorMonitorType;
   status: MonitorStatus;
+  checkSource: MonitorCheckSource;
+  /** @nullable */
+  lastValue: string | null;
   createdAt: Date;
   lastChecked: Date;
 }

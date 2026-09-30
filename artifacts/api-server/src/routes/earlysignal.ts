@@ -4,6 +4,8 @@ import { eq } from "drizzle-orm";
 import {
   CreateEarlySignalMonitorBody,
   CreateEarlySignalMonitorResponse,
+  CheckEarlySignalMonitorParams,
+  CheckEarlySignalMonitorResponse,
   GetEarlySignalWorkspaceResponse,
   UpdateEarlySignalMonitorStatusBody,
   UpdateEarlySignalMonitorStatusParams,
@@ -15,6 +17,7 @@ import {
   DEMO_CHANGES,
   DEMO_MONITORS,
 } from "@workspace/earlysignal-demo";
+import { checkMonitor, MonitorNotFoundError } from "../lib/checker";
 
 const router: IRouter = Router();
 const forceDemoMode = process.env.DEMO_MODE === "true";
@@ -106,6 +109,8 @@ router.post("/earlysignal/monitors", async (req, res): Promise<void> => {
       websiteUrl: websiteUrl.toString(),
       monitorType: "Product Price",
       status: "active",
+      checkSource: "demo",
+      lastValue: null,
       createdAt: now,
       lastChecked: now,
     })
@@ -139,6 +144,33 @@ router.patch("/earlysignal/monitors/:id/status", async (req, res): Promise<void>
   }
 
   res.json(UpdateEarlySignalMonitorStatusResponse.parse(serializeMonitor(monitor)));
+});
+
+router.post("/check/:id", async (req, res): Promise<void> => {
+  const params = CheckEarlySignalMonitorParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  try {
+    const result = await checkMonitor(params.data.id);
+    res.json(
+      CheckEarlySignalMonitorResponse.parse({
+        success: result.success,
+        message: result.message,
+        changeDetected: result.changeDetected,
+        value: result.value,
+        monitor: serializeMonitor(result.monitor),
+      }),
+    );
+  } catch (error) {
+    if (error instanceof MonitorNotFoundError) {
+      res.status(404).json({ error: "Monitor not found" });
+      return;
+    }
+    throw error;
+  }
 });
 
 export default router;

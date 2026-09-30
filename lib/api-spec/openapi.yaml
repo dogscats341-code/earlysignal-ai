@@ -94,6 +94,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /check/{id}:
+    post:
+      operationId: checkEarlySignalMonitor
+      summary: Check a monitor now
+      description: Fetches the monitor website and records a price change when the extracted value differs from its previous value.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Check completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonitorCheckResult"
+        "404":
+          description: Monitor not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -118,13 +142,18 @@ components:
         status:
           type: string
           enum: [active, paused]
+        checkSource:
+          type: string
+          enum: [demo, live]
+        lastValue:
+          type: [string, "null"]
         createdAt:
           type: string
           format: date-time
         lastChecked:
           type: string
           format: date-time
-      required: [id, name, websiteUrl, monitorType, status, createdAt, lastChecked]
+      required: [id, name, websiteUrl, monitorType, status, checkSource, lastValue, createdAt, lastChecked]
     Change:
       type: object
       properties:
@@ -147,10 +176,13 @@ components:
           enum: [Low, Medium, High]
         sourceUrl:
           type: string
+        dataSource:
+          type: string
+          enum: [demo, live]
         detectedAt:
           type: string
           format: date-time
-      required: [id, monitorId, changeType, title, description, oldValue, newValue, severity, sourceUrl, detectedAt]
+      required: [id, monitorId, changeType, title, description, oldValue, newValue, severity, sourceUrl, dataSource, detectedAt]
     AIAnalysis:
       type: object
       properties:
@@ -207,6 +239,20 @@ components:
           type: string
           enum: [active, paused]
       required: [status]
+    MonitorCheckResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        changeDetected:
+          type: boolean
+        value:
+          type: [string, "null"]
+        monitor:
+          $ref: "#/components/schemas/Monitor"
+      required: [success, message, changeDetected, value, monitor]
     ErrorResponse:
       type: object
       properties:

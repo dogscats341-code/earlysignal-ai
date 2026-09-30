@@ -5,6 +5,7 @@ export type MonitorType =
   | 'Website Content';
 export type MonitorStatus = 'active' | 'paused';
 export type Severity = 'Low' | 'Medium' | 'High';
+export type CheckSource = 'demo' | 'live';
 
 export type DemoMonitor = {
   id: string;
@@ -12,6 +13,8 @@ export type DemoMonitor = {
   websiteUrl: string;
   monitorType: MonitorType;
   status: MonitorStatus;
+  checkSource: CheckSource;
+  lastValue: string | null;
   createdAt: string;
   lastChecked: string;
 };
@@ -26,6 +29,7 @@ export type DemoChange = {
   newValue: string;
   severity: Severity;
   sourceUrl: string;
+  dataSource: CheckSource;
   detectedAt: string;
 };
 
@@ -45,6 +49,8 @@ export const DEMO_MONITORS: DemoMonitor[] = [
     websiteUrl: 'https://northstarhome.example',
     monitorType: 'Product Price',
     status: 'active',
+    checkSource: 'demo',
+    lastValue: null,
     createdAt: '2026-09-14T09:20:00Z',
     lastChecked: '2026-09-29T14:10:00Z',
   },
@@ -54,6 +60,8 @@ export const DEMO_MONITORS: DemoMonitor[] = [
     websiteUrl: 'https://pineandloom.example',
     monitorType: 'Product Catalog',
     status: 'active',
+    checkSource: 'demo',
+    lastValue: null,
     createdAt: '2026-09-09T11:15:00Z',
     lastChecked: '2026-09-29T13:48:00Z',
   },
@@ -63,6 +71,8 @@ export const DEMO_MONITORS: DemoMonitor[] = [
     websiteUrl: 'https://orbitsupply.example',
     monitorType: 'Website Content',
     status: 'paused',
+    checkSource: 'demo',
+    lastValue: null,
     createdAt: '2026-08-27T16:40:00Z',
     lastChecked: '2026-09-28T10:12:00Z',
   },
@@ -72,6 +82,8 @@ export const DEMO_MONITORS: DemoMonitor[] = [
     websiteUrl: 'https://studiocalder.example',
     monitorType: 'Product Availability',
     status: 'active',
+    checkSource: 'demo',
+    lastValue: null,
     createdAt: '2026-08-18T08:05:00Z',
     lastChecked: '2026-09-29T12:31:00Z',
   },
@@ -89,6 +101,7 @@ export const DEMO_CHANGES: DemoChange[] = [
     newValue: '$459.00',
     severity: 'High',
     sourceUrl: 'https://northstarhome.example/alder-lounge-chair',
+    dataSource: 'demo',
     detectedAt: '2026-09-29T14:10:00Z',
   },
   {
@@ -102,6 +115,7 @@ export const DEMO_CHANGES: DemoChange[] = [
     newValue: '45 listed products',
     severity: 'Medium',
     sourceUrl: 'https://pineandloom.example/shop',
+    dataSource: 'demo',
     detectedAt: '2026-09-29T13:48:00Z',
   },
   {
@@ -115,6 +129,7 @@ export const DEMO_CHANGES: DemoChange[] = [
     newValue: 'Built for the long way home.',
     severity: 'Low',
     sourceUrl: 'https://orbitsupply.example',
+    dataSource: 'demo',
     detectedAt: '2026-09-28T10:12:00Z',
   },
   {
@@ -129,6 +144,7 @@ export const DEMO_CHANGES: DemoChange[] = [
       'Recycled canvas with brass hardware and a two-year warranty.',
     severity: 'Medium',
     sourceUrl: 'https://studiocalder.example/weekender',
+    dataSource: 'demo',
     detectedAt: '2026-09-27T09:21:00Z',
   },
 ];

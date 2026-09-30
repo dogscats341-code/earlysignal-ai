@@ -27,12 +27,23 @@ export const MonitorStatus = {
   paused: 'paused',
 } as const;
 
+export type MonitorCheckSource = typeof MonitorCheckSource[keyof typeof MonitorCheckSource];
+
+
+export const MonitorCheckSource = {
+  demo: 'demo',
+  live: 'live',
+} as const;
+
 export interface Monitor {
   id: string;
   name: string;
   websiteUrl: string;
   monitorType: MonitorMonitorType;
   status: MonitorStatus;
+  checkSource: MonitorCheckSource;
+  /** @nullable */
+  lastValue: string | null;
   createdAt: string;
   lastChecked: string;
 }
@@ -46,6 +57,14 @@ export const ChangeSeverity = {
   High: 'High',
 } as const;
 
+export type ChangeDataSource = typeof ChangeDataSource[keyof typeof ChangeDataSource];
+
+
+export const ChangeDataSource = {
+  demo: 'demo',
+  live: 'live',
+} as const;
+
 export interface Change {
   id: string;
   monitorId: string;
@@ -56,6 +75,7 @@ export interface Change {
   newValue: string;
   severity: ChangeSeverity;
   sourceUrl: string;
+  dataSource: ChangeDataSource;
   detectedAt: string;
 }
 
@@ -108,6 +128,15 @@ export const MonitorStatusInputStatus = {
 
 export interface MonitorStatusInput {
   status: MonitorStatusInputStatus;
+}
+
+export interface MonitorCheckResult {
+  success: boolean;
+  message: string;
+  changeDetected: boolean;
+  /** @nullable */
+  value: string | null;
+  monitor: Monitor;
 }
 
 export interface ErrorResponse {

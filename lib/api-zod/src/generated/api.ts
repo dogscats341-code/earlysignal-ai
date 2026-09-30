@@ -29,6 +29,8 @@ export const GetEarlySignalWorkspaceResponse = zod.object({
   "websiteUrl": zod.string(),
   "monitorType": zod.enum(['Product Price', 'Product Availability', 'Product Catalog', 'Website Content']),
   "status": zod.enum(['active', 'paused']),
+  "checkSource": zod.enum(['demo', 'live']),
+  "lastValue": zod.string().nullable(),
   "createdAt": zod.coerce.date(),
   "lastChecked": zod.coerce.date()
 })),
@@ -42,6 +44,7 @@ export const GetEarlySignalWorkspaceResponse = zod.object({
   "newValue": zod.string(),
   "severity": zod.enum(['Low', 'Medium', 'High']),
   "sourceUrl": zod.string(),
+  "dataSource": zod.enum(['demo', 'live']),
   "detectedAt": zod.coerce.date()
 })),
   "analyses": zod.array(zod.object({
@@ -75,6 +78,8 @@ export const CreateEarlySignalMonitorResponse = zod.object({
   "websiteUrl": zod.string(),
   "monitorType": zod.enum(['Product Price', 'Product Availability', 'Product Catalog', 'Website Content']),
   "status": zod.enum(['active', 'paused']),
+  "checkSource": zod.enum(['demo', 'live']),
+  "lastValue": zod.string().nullable(),
   "createdAt": zod.coerce.date(),
   "lastChecked": zod.coerce.date()
 })
@@ -97,8 +102,37 @@ export const UpdateEarlySignalMonitorStatusResponse = zod.object({
   "websiteUrl": zod.string(),
   "monitorType": zod.enum(['Product Price', 'Product Availability', 'Product Catalog', 'Website Content']),
   "status": zod.enum(['active', 'paused']),
+  "checkSource": zod.enum(['demo', 'live']),
+  "lastValue": zod.string().nullable(),
   "createdAt": zod.coerce.date(),
   "lastChecked": zod.coerce.date()
+})
+
+
+/**
+ * Fetches the monitor website and records a price change when the extracted value differs from its previous value.
+ * @summary Check a monitor now
+ */
+export const CheckEarlySignalMonitorParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const CheckEarlySignalMonitorResponse = zod.object({
+  "success": zod.boolean(),
+  "message": zod.string(),
+  "changeDetected": zod.boolean(),
+  "value": zod.string().nullable(),
+  "monitor": zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "websiteUrl": zod.string(),
+  "monitorType": zod.enum(['Product Price', 'Product Availability', 'Product Catalog', 'Website Content']),
+  "status": zod.enum(['active', 'paused']),
+  "checkSource": zod.enum(['demo', 'live']),
+  "lastValue": zod.string().nullable(),
+  "createdAt": zod.coerce.date(),
+  "lastChecked": zod.coerce.date()
+})
 })
 
 

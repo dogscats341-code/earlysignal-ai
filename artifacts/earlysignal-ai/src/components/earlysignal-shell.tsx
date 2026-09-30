@@ -73,6 +73,11 @@ export function DemoBadge() {
   return <span className="pill pill-demo" data-testid="status-demo-data"><ShieldAlert size={11} /> Demo data</span>;
 }
 
+export function DataSourceBadge({ source }: { source: 'demo' | 'live' }) {
+  if (source === 'demo') return <DemoBadge />;
+  return <span className="pill pill-live" data-testid="status-live-check"><Activity size={11} /> Live check</span>;
+}
+
 export function PageIntro({ eyebrow, title, description, action }: { eyebrow: string; title: string; description?: string; action?: React.ReactNode }) {
   return (
     <header className="page-header">

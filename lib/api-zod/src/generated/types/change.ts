@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ChangeDataSource } from './changeDataSource';
 import type { ChangeSeverity } from './changeSeverity';
 
 export interface Change {
@@ -17,5 +18,6 @@ export interface Change {
   newValue: string;
   severity: ChangeSeverity;
   sourceUrl: string;
+  dataSource: ChangeDataSource;
   detectedAt: Date;
 }
