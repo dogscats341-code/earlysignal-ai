@@ -137,6 +137,10 @@ function extractProductPrice(html: string): string | null {
   return candidates.find((candidate) => candidate !== null) ?? null;
 }
 
+function isVerificationPage(html: string): boolean {
+  return /bm-verify|cf-chl-|cf-browser-verification|challenge-platform/i.test(html);
+}
+
 function isProductPriceType(type: string): boolean {
   return type.toUpperCase().replace(/[\s-]+/g, "_") === "PRODUCT_PRICE";
 }
@@ -179,6 +183,15 @@ export async function scrapeWebsite(url: string, type: string): Promise<ScrapeWe
         value: null,
         rawHtmlSnippet,
         error: `The website returned HTTP ${response.status}.`,
+      };
+    }
+
+    if (isVerificationPage(html)) {
+      return {
+        success: false,
+        value: null,
+        rawHtmlSnippet,
+        error: "The website returned an anti-bot verification page instead of product content.",
       };
     }
 
