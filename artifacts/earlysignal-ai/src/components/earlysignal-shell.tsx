@@ -20,7 +20,7 @@ const navItems = [
 
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
-    <span className="brand" aria-label="EarlySignal AI">
+    <span className="brand" aria-label="EarlySignal AI" style={{ cursor: 'pointer' }}>
       <span className="brand-mark"><Activity size={17} strokeWidth={2.5} /></span>
       {!compact && <span><span className="brand-name">EarlySignal AI</span><span className="brand-sub">Operational clarity</span></span>}
     </span>
@@ -30,11 +30,11 @@ export function Logo({ compact = false }: { compact?: boolean }) {
 function Navigation({ mobile = false }: { mobile?: boolean }) {
   const [location] = useLocation();
   return (
-    <nav aria-label="Main navigation" className={mobile ? 'nav-list' : 'nav-list'}>
+    <nav aria-label="Main navigation" className={mobile? 'nav-list' : 'nav-list'}>
       {navItems.map(({ href, label, icon: Icon }) => {
         const active = location === href || (href === '/monitors' && location.startsWith('/monitors/'));
         return (
-          <Link key={href} href={href} className={`nav-link${active ? ' active' : ''}`} data-testid={`link-nav-${label.toLowerCase()}`}>
+          <Link key={href} href={href} className={`nav-link${active? ' active' : ''}`} data-testid={`link-nav-${label.toLowerCase()}`}>
             <Icon className="nav-icon" strokeWidth={1.8} />
             <span>{label}</span>
           </Link>
@@ -48,19 +48,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="app-shell">
       <div className="mobile-topbar">
-        <Logo />
+        <Link href="/" className="brand-link" data-testid="link-logo-home" style={{ textDecoration: 'none', cursor: 'pointer' }}>
+          <Logo />
+        </Link>
         <Link href="/monitors/new" className="btn btn-primary btn-sm" data-testid="link-mobile-add-monitor"><Plus size={14} /> Add monitor</Link>
       </div>
       <div className="app-layout">
         <aside className="sidebar">
-          <Link href="/dashboard" className="brand" data-testid="link-brand-dashboard"><Logo /></Link>
+          <Link href="/" className="brand" data-testid="link-brand-home" style={{ textDecoration: 'none', cursor: 'pointer' }}>
+            <Logo />
+          </Link>
           <div className="nav-section">
             <div className="eyebrow">Workspace</div>
             <Navigation />
           </div>
           <div className="sidebar-foot">
-            <span className="demo-chip"><span className="demo-dot" /> Demo environment</span>
-            <p>Signals are illustrative. No live monitoring is connected.</p>
+            <span className="demo-chip" style={{ background: 'rgba(45,212,191,0.15)', borderColor: 'rgba(45,212,191,0.4)', color: '#2dd4bf' }}><span className="demo-dot" style={{ background: '#2dd4bf' }} /> LIVE • International</span>
+            <p>Live monitoring active. Real checks connected to Supabase - Worldwide.</p>
           </div>
         </aside>
         <main className="main-area">{children}</main>
@@ -75,7 +79,7 @@ export function DemoBadge() {
 
 export function DataSourceBadge({ source }: { source: 'demo' | 'live' }) {
   if (source === 'demo') return <DemoBadge />;
-  return <span className="pill pill-live" data-testid="status-live-check"><Activity size={11} /> Live check</span>;
+  return <span className="pill pill-live" data-testid="status-live-check" style={{ background: 'rgba(45,212,191,0.15)', color: '#2dd4bf', borderColor: 'rgba(45,212,191,0.3)' }}><Activity size={11} /> Live check</span>;
 }
 
 export function PageIntro({ eyebrow, title, description, action }: { eyebrow: string; title: string; description?: string; action?: React.ReactNode }) {
@@ -92,7 +96,7 @@ export function PageIntro({ eyebrow, title, description, action }: { eyebrow: st
 }
 
 export function StatusBadge({ status }: { status: 'active' | 'paused' }) {
-  return <span className={`pill pill-${status}`} data-testid={`status-monitor-${status}`}><span className="demo-dot" style={{ background: status === 'active' ? 'var(--cyan)' : '#9da9bb', boxShadow: 'none' }} /> {status}</span>;
+  return <span className={`pill pill-${status}`} data-testid={`status-monitor-${status}`}><span className="demo-dot" style={{ background: status === 'active'? 'var(--cyan)' : '#9da9bb', boxShadow: 'none' }} /> {status}</span>;
 }
 
 export function SeverityBadge({ severity }: { severity: 'Low' | 'Medium' | 'High' }) {
