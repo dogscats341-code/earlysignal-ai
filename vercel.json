@@ -1,3 +1,9 @@
 {
-  "installCommand": "pnpm install --no-frozen-lockfile"
+  "installCommand": "pnpm install --no-frozen-lockfile",
+  "functions": {
+    "artifacts/earlysignal-ai/api/scrape.js": {
+      "memory": 3008,
+      "maxDuration": 30
+    }
+  }
 }
