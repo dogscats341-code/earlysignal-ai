@@ -11,8 +11,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
-    "@sparticuz/chromium-min": "^131.0.0",
-    "puppeteer-core": "^22.13.0"
+    "@supabase/supabase-js": "^2.45.0"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",
