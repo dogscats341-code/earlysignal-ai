@@ -16,5 +16,28 @@ export const MONITORS: Monitor[] = [
   { id: "hm-ma", name: "H&M Morocco - New Arrivals", url: "https://www2.hm.com/fr_ma/index.html", type: "new_arrival", checkInterval: "12h" },
 ]
 
-export const REFRESH_INTERVAL = 6 * 60 * 60 * 1000 // 6h
+export const REFRESH_INTERVAL = 6 * 60 * 60 * 1000
 export const NEXT_CHECK_LABEL = "Next check in 6h"
+
+// Compatibility exports for demo-data.ts
+export type DemoMonitor = Monitor
+export const DEMO_MONITORS: DemoMonitor[] = MONITORS
+
+export type DemoChange = {
+  id: string
+  monitorId: string
+  severity: "low" | "medium" | "high"
+  title: string
+  description: string
+  createdAt: string
+}
+
+export const DEMO_CHANGES: DemoChange[] = []
+
+export type DemoAIAnalysis = {
+  id: string
+  changeId: string
+  summary: string
+}
+
+export const DEMO_AI_ANALYSES: DemoAIAnalysis[] = []
