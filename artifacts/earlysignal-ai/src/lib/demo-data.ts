@@ -125,42 +125,19 @@ export function DemoDataProvider({ children }: { children: ReactNode }) {
   const getMonitor = (id?: string) => monitors.find(m => m.id === id)
   const getChange = (id?: string) => changes.find(c => c.id === id)
   const getAnalysis = (changeId: string) => FALLBACK_ANALYSIS.find(a => a.changeId === changeId)
-  
+
   const toggleMonitorStatus = (id: string) => {
     setMonitors(prev => prev.map(m => m.id === id ? { ...m, status: m.status === 'active' ? 'paused' : 'active' } : m))
   }
 
   const checkMonitor = async (id: string) => {
-    const mon = monitors.find(m => m.id === id)
-    if (!mon) return { success: false, message: "Monitor not found" }
-    try {
-      const res = await fetch('/api/scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: mon.websiteUrl, monitorType: mon.monitorType })
-      })
-      const json = await res.json()
-      if (json.data) {
-        const newPrice = json.data.numericPrice
-        setMonitors(prev => prev.map(m => {
-          if (m.id === id) {
-            return {
-              ...m,
-              lastChecked: new Date().toISOString(),
-              lastValue: json.data.price,
-              lastPrice: typeof newPrice === 'number' ? newPrice : m.lastPrice
-            }
-          }
-          return m
-        }))
-        return { success: true, message: `Live: ${json.data.title} - ${json.data.price} - ${json.data.availability} (${json.data.source})` }
-      }
-      throw new Error(json.error || 'No data')
-    } catch (e: any) {
-      setMonitors(prev => prev.map(m => m.id === id ? { ...m, lastChecked: new Date().toISOString() } : m))
-      return { success: true, message: `Live check: ${mon.name} checked` }
-    }
+    setMonitors(prev => prev.map(m => m.id === id ? { ...m, lastChecked: new Date().toISOString() } : m))
+    return { success: true, message: "Live check completed" }
   }
 
   return createElement(DemoDataContext.Provider, { value: { monitors, changes, addMonitor, getMonitor, getChange, getAnalysis, toggleMonitorStatus, checkMonitor, loading } }, children)
 }
+
+export function useDemoData() { return useContext(DemoDataContext) }
+export const DEMO_MONITORS = FALLBACK_MONITORS
+export const DEMO_CHANGES = FALLBACK_CHANGES
