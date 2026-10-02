@@ -20,9 +20,9 @@ const navItems = [
 
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
-    <span className="brand" aria-label="EarlySignal AI" style={{ cursor: 'pointer' }}>
-      <span className="brand-mark"><Activity size={17} strokeWidth={2.5} /></span>
-      {!compact && <span><span className="brand-name">EarlySignal AI</span><span className="brand-sub">Operational clarity</span></span>}
+    <span className="brand" aria-label="EarlySignal AI" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <span className="brand-mark" style={{ width: '32px', height: '32px', background: '#5ee9c8', borderRadius: '8px', display: 'grid', placeItems: 'center', color: '#000' }}><Activity size={17} strokeWidth={2.5} /></span>
+      {!compact && <span><span className="brand-name" style={{ color: 'white', fontWeight: 700, fontSize: '16px' }}>EarlySignal AI</span><span className="brand-sub" style={{ display: 'block', fontSize: '9px', letterSpacing: '1.5px', color: '#8a9ba8', textTransform: 'uppercase' }}>Operational clarity</span></span>}
     </span>
   );
 }
@@ -48,23 +48,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="app-shell">
       <div className="mobile-topbar">
-        <Link href="/" className="brand-link" data-testid="link-logo-home" style={{ textDecoration: 'none', cursor: 'pointer' }}>
+        <a href="/" style={{ textDecoration: 'none', cursor: 'pointer', display: 'flex' }} data-testid="link-logo-home-mobile">
           <Logo />
-        </Link>
+        </a>
         <Link href="/monitors/new" className="btn btn-primary btn-sm" data-testid="link-mobile-add-monitor"><Plus size={14} /> Add monitor</Link>
       </div>
       <div className="app-layout">
         <aside className="sidebar">
-          <Link href="/" className="brand" data-testid="link-brand-home" style={{ textDecoration: 'none', cursor: 'pointer' }}>
+          <a href="/" style={{ textDecoration: 'none', cursor: 'pointer', display: 'block' }} data-testid="link-logo-home">
             <Logo />
-          </Link>
+          </a>
           <div className="nav-section">
             <div className="eyebrow">Workspace</div>
             <Navigation />
           </div>
           <div className="sidebar-foot">
             <span className="demo-chip" style={{ background: 'rgba(45,212,191,0.15)', borderColor: 'rgba(45,212,191,0.4)', color: '#2dd4bf' }}><span className="demo-dot" style={{ background: '#2dd4bf' }} /> LIVE • International</span>
-            <p>Live monitoring active. Real checks connected to Supabase - Worldwide.</p>
+            <p>Live monitoring active. Worldwide checks.</p>
           </div>
         </aside>
         <main className="main-area">{children}</main>
