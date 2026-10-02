@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 // Phase 5 - Proxy scraper with 3-tier fallback for Moroccan sites
 export type ScrapeResult = {
   status: "ok" | "blocked_cached" | "blocked" | "down"
