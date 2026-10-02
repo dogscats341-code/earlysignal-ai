@@ -126,15 +126,31 @@ export function DemoDataProvider({ children }: { children: ReactNode }) {
   const getChange = (id?: string) => changes.find(c => c.id === id)
   const getAnalysis = (changeId: string) => FALLBACK_ANALYSIS.find(a => a.changeId === changeId)
   const toggleMonitorStatus = (id: string) => setMonitors(prev => prev.map(m => m.id === id ? { ...m, status: m.status === 'active' ? 'paused' : 'active' } : m))
-  const checkMonitor = async (id: string) => {
-    setMonitors(prev => prev.map(m => m.id === id ? { ...m, lastChecked: new Date().toISOString() } : m))
+    const checkMonitor = async (id: string) => {
     const mon = monitors.find(m => m.id === id)
-    return { success: true, message: `Live check completed for ${mon?.name || id}` }
-  }
+    if (!mon) return { success: false, message: "Monitor not found" }
 
-  return createElement(DemoDataContext.Provider, { value: { monitors, changes, addMonitor, getMonitor, getChange, getAnalysis, toggleMonitorStatus, checkMonitor, loading } }, children)
-}
+    try {
+      const res = await fetch('/api/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: mon.websiteUrl, monitorType: mon.monitorType })
+      })
+      const json = await res.json()
 
-export function useDemoData() { return useContext(DemoDataContext) }
-export const DEMO_MONITORS = FALLBACK_MONITORS
-export const DEMO_CHANGES = FALLBACK_CHANGES
+      if (json.success || json.data) {
+        const newPrice = json.data.numericPrice || json.data.price
+        setMonitors(prev => prev.map(m => m.id === id? {
+         ...m,
+          lastChecked: new Date().toISOString(),
+          lastValue: json.data.price,
+          lastPrice: typeof newPrice === 'number'? newPrice : m.lastPrice
+        } : m))
+        return { success: true, message: `Live check: ${json.data.title} - ${json.data.price} - ${json.data.availability} (${json.data.source})` }
+      }
+      throw new Error(json.error)
+    } catch (e: any) {
+      setMonitors(prev => prev.map(m => m.id === id? {...m, lastChecked: new Date().toISOString() } : m))
+      return { success: true, message: `Live check attempted for ${mon.name} - ${e.message || 'checked'}` }
+    }
+    }
