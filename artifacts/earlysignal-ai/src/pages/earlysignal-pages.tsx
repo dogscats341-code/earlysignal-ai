@@ -38,7 +38,7 @@ import {
   PageIntro,
   SeverityBadge,
   StatusBadge,
-} from '@/components/shell';
+} from '@/components/earlysignal-shell';
 
 // --- Helper Components ---
 
