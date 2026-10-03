@@ -1,61 +1,227 @@
-import { createContext, useContext, useEffect, useState, createElement, type ReactNode } from 'react'
-export type MonitorType = "Product Price" | "Stock Availability" | "New Arrival" | "Uptime" | "Product Availability" | "Product Catalog" | "Website Content"
-export type MonitorStatus = "active" | "paused" | "error"
-export type Monitor = { id: string; name: string; websiteUrl: string; monitorType: MonitorType; status: MonitorStatus; checkInterval?: string; lastPrice?: number; lastValue?: string; lastChecked?: string; createdAt?: string; checkSource: "live" | "demo" }
-export type Change = { id: string; monitorId: string; severity: "High" | "Medium" | "Low"; title: string; description: string; detectedAt: string; changeType: string; oldValue?: string; newValue?: string; dataSource: string; sourceUrl: string }
-export type Analysis = { id: string; changeId: string; summary: string; whyItMatters: string; suggestedAction: string }
-export function formatDate(d?: string) { if (!d) return "-"; try { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) } catch { return d } }
-export function formatDateTime(d?: string) { if (!d) return "-"; try { return new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) } catch { return d } }
-export function getTimeAgo(d?: string) { if (!d) return "now"; const diff = Date.now() - new Date(d).getTime(); const m = Math.floor(diff/60000); if (m < 1) return "now"; if (m < 60) return `${m}m ago`; const h = Math.floor(m/60); if (h < 24) return `${h}h ago`; return `${Math.floor(h/24)}d ago` }
-const FALLBACK_MONITORS: Monitor[] = [
-  { id: "【entity-amazon¦canonical_name=Amazon】-iphone", name: "【entity-Amazon¦canonical_name=Amazon】 - iPhone 15 Pro", websiteUrl: "https://www.amazon.com/s?k=iphone+15+pro", monitorType: "Product Price", status: "active", checkInterval: "6h", lastPrice: 999, lastValue: "$999", lastChecked: new Date().toISOString(), createdAt: new Date().toISOString(), checkSource: "live" },
-  { id: "bestbuy-macbook", name: "BestBuy - MacBook Air M3", websiteUrl: "https://www.bestbuy.com/site/searchpage.jsp?st=macbook+air+m3", monitorType: "Product Price", status: "active", checkInterval: "6h", lastPrice: 1099, lastValue: "$1099", lastChecked: new Date().toISOString(), createdAt: new Date().toISOString(), checkSource: "live" },
-  { id: "【entity-zara¦canonical_name=Zara】-new", name: "【entity-Zara¦canonical_name=Zara】 - New Arrivals", websiteUrl: "https://www.zara.com/us/en/new-c438.html", monitorType: "New Arrival", status: "active", checkInterval: "12h", lastChecked: new Date().toISOString(), createdAt: new Date().toISOString(), checkSource: "live" },
-]
-const FALLBACK_CHANGES: Change[] = [
-  { id: "chg-1", monitorId: "【entity-amazon¦canonical_name=Amazon】-iphone", severity: "High", title: "Price dropped -12% on 【entity-Amazon¦canonical_name=Amazon】", description: "iPhone 15 Pro dropped from $1129 to $999.", detectedAt: new Date(Date.now() - 8*60000).toISOString(), changeType: "price_drop", oldValue: "$1129", newValue: "$999", dataSource: "live", sourceUrl: "https://www.amazon.com/s?k=iphone+15+pro" },
-]
-const FALLBACK_ANALYSIS: Analysis[] = [{ id: "an-1", changeId: "chg-1", summary: "Significant price drop.", whyItMatters: "May impact your pricing.", suggestedAction: "Check pricing." }]
-type DemoDataContextType = { monitors: Monitor[]; changes: Change[]; addMonitor: (m: { name: string; websiteUrl: string; monitorType: MonitorType }) => Promise<Monitor>; getMonitor: (id?: string) => Monitor | undefined; getChange: (id?: string) => Change | undefined; getAnalysis: (changeId: string) => Analysis | undefined; toggleMonitorStatus: (id: string) => void; checkMonitor: (id: string) => Promise<{ success: boolean; message: string }>; loading: boolean }
-const DemoDataContext = createContext<DemoDataContextType>({ monitors: FALLBACK_MONITORS, changes: FALLBACK_CHANGES, addMonitor: async () => FALLBACK_MONITORS[0], getMonitor: () => undefined, getChange: () => undefined, getAnalysis: () => undefined, toggleMonitorStatus: () => {}, checkMonitor: async () => ({ success: true, message: "Live check completed" }), loading: false })
-export function DemoDataProvider({ children }: { children: ReactNode }) {
-  const [monitors, setMonitors] = useState<Monitor[]>(FALLBACK_MONITORS)
-  const [changes] = useState<Change[]>(FALLBACK_CHANGES)
-  const [loading, setLoading] = useState(false)
-  useEffect(() => { setLoading(false) }, [])
-  const addMonitor = async (input: { name: string; websiteUrl: string; monitorType: MonitorType }) => {
-    const newMon: Monitor = { id: `mon-${Date.now()}`, name: input.name, websiteUrl: input.websiteUrl, monitorType: input.monitorType, status: "active", checkInterval: "6h", lastChecked: new Date().toISOString(), createdAt: new Date().toISOString(), checkSource: "live" }
-    setMonitors(prev => [newMon,...prev]); return newMon
-  }
-  const getMonitor = (id?: string) => monitors.find(m => m.id === id)
-  const getChange = (id?: string) => changes.find(c => c.id === id)
-  const getAnalysis = (changeId: string) => FALLBACK_ANALYSIS.find(a => a.changeId === changeId)
-  const toggleMonitorStatus = (id: string) => { setMonitors(prev => prev.map(m => m.id === id? {...m, status: m.status === 'active'? 'paused' : 'active' } : m)) }
-  const checkMonitor = async (id: string) => {
-    const mon = monitors.find(m => m.id === id)
-    if (!mon) return { success: false, message: "Monitor not found" }
-    try {
-      const res = await fetch('/api/scrape', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: mon.websiteUrl, monitorType: mon.monitorType }) })
-      const json = await res.json()
-      if (json && json.data) {
-        const d = json.data
-        if (d.price && d.price!== 'BLOCKED' && d.price!== 'PRICE_NOT_FOUND' && d.price!== 'ERROR') {
-          const np = d.numericPrice
-          setMonitors(prev => prev.map(mm => mm.id === id? {...mm, lastChecked: new Date().toISOString(), lastValue: d.price, lastPrice: typeof np === 'number' && np>0? np : mm.lastPrice } : mm))
-          return { success: true, message: `✅ ${d.title} | ${d.price} | ${d.availability} | ${d.source} [${d.strategy}]` }
-        } else {
-          setMonitors(prev => prev.map(mm => mm.id === id? {...mm, lastChecked: new Date().toISOString() } : mm))
-          return { success: false, message: `❌ ${d.price} - ${d.availability} - ${d.source} - Try another product page` }
-        }
-      }
-      throw new Error('No data')
-    } catch (e: any) {
-      setMonitors(prev => prev.map(mm => mm.id === id? {...mm, lastChecked: new Date().toISOString() } : mm))
-      return { success: false, message: `❌ Fetch failed: ${e.message} - Site may block Vercel` }
-    }
-  }
-  return createElement(DemoDataContext.Provider, { value: { monitors, changes, addMonitor, getMonitor, getChange, getAnalysis, toggleMonitorStatus, checkMonitor, loading } }, children)
+import { useEffect, useState } from 'react';
+
+export type MonitorStatus = 'active' | 'paused';
+export type MonitorType = 'Product Price' | 'Product Availability' | 'Product Catalog' | 'Website Content';
+export type Severity = 'High' | 'Medium' | 'Low';
+
+export interface Monitor {
+  id: string;
+  name: string;
+  websiteUrl: string;
+  monitorType: MonitorType;
+  status: MonitorStatus;
+  lastChecked: string;
+  lastValue?: string;
+  checkSource: string;
+  createdAt: string;
 }
-export function useDemoData() { return useContext(DemoDataContext) }
-export const DEMO_MONITORS = FALLBACK_MONITORS
-export const DEMO_CHANGES = FALLBACK_CHANGES
+
+export interface Change {
+  id: string;
+  monitorId: string;
+  title: string;
+  description: string;
+  oldValue: string;
+  newValue: string;
+  severity: Severity;
+  dataSource: string;
+  detectedAt: string;
+}
+
+const INITIAL_MONITORS: Monitor[] = [
+  {
+    id: 'mon-1',
+    name: 'Jumia Morocco - iPhone 15',
+    websiteUrl: 'https://www.jumia.ma',
+    monitorType: 'Product Price',
+    status: 'active',
+    lastChecked: new Date().toISOString(),
+    lastValue: '11,499 DH',
+    checkSource: 'jumia.ma Live',
+    createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+  },
+  {
+    id: 'mon-2',
+    name: 'Iris.ma - Gaming Laptop',
+    websiteUrl: 'https://www.iris.ma',
+    monitorType: 'Product Price',
+    status: 'active',
+    lastChecked: new Date().toISOString(),
+    lastValue: '8,990 DH',
+    checkSource: 'iris.ma Live',
+    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+  },
+];
+
+const INITIAL_CHANGES: Change[] = [
+  {
+    id: 'chg-1',
+    monitorId: 'mon-1',
+    title: 'Price decreased by 5%',
+    description: 'Product price dropped from 12,099 DH to 11,499 DH on Jumia.',
+    oldValue: '12,099 DH',
+    newValue: '11,499 DH',
+    severity: 'High',
+    dataSource: 'jumia.ma Live',
+    detectedAt: new Date(Date.now() - 1000 * 60 * 35).toISOString(),
+  },
+];
+
+export function useDemoData() {
+  const [monitors, setMonitors] = useState<Monitor[]>(() => {
+    const saved = localStorage.getItem('earlysignal_monitors');
+    return saved ? JSON.parse(saved) : INITIAL_MONITORS;
+  });
+
+  const [changes, setChanges] = useState<Change[]>(() => {
+    const saved = localStorage.getItem('earlysignal_changes');
+    return saved ? JSON.parse(saved) : INITIAL_CHANGES;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('earlysignal_monitors', JSON.stringify(monitors));
+  }, [monitors]);
+
+  useEffect(() => {
+    localStorage.setItem('earlysignal_changes', JSON.stringify(changes));
+  }, [changes]);
+
+  const addMonitor = async (data: { name: string; websiteUrl: string; monitorType: MonitorType }): Promise<Monitor> => {
+    let hostname = 'website';
+    try {
+      hostname = new URL(data.websiteUrl).hostname.replace('www.', '');
+    } catch {}
+
+    const newMonitor: Monitor = {
+      id: `mon-${Date.now()}`,
+      name: data.name,
+      websiteUrl: data.websiteUrl,
+      monitorType: data.monitorType,
+      status: 'active',
+      lastChecked: new Date().toISOString(),
+      lastValue: 'Pending check',
+      checkSource: `${hostname} Live`,
+      createdAt: new Date().toISOString(),
+    };
+
+    setMonitors((prev) => [newMonitor, ...prev]);
+    return newMonitor;
+  };
+
+  const toggleMonitorStatus = (id: string) => {
+    setMonitors((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, status: m.status === 'active' ? 'paused' : 'active' } : m))
+    );
+  };
+
+  const checkMonitor = async (id: string): Promise<{ success: boolean; message: string }> => {
+    const monitor = monitors.find((m) => m.id === id);
+    if (!monitor) return { success: false, message: 'Monitor not found' };
+
+    try {
+      const res = await fetch('/api/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: monitor.websiteUrl }),
+      });
+
+      const json = await res.json();
+
+      if (!json.success) {
+        return {
+          success: false,
+          message: json.data?.price === 'BLOCKED' ? 'Target website blocked request' : 'Could not extract price',
+        };
+      }
+
+      const fetchedPrice = json.data.price;
+      const oldPrice = monitor.lastValue || 'N/A';
+      const now = new Date().toISOString();
+
+      // تسجيل تغيّر جديد إذا اختلف السعر عن السعر السابق
+      if (fetchedPrice && fetchedPrice !== oldPrice && oldPrice !== 'Pending check') {
+        const newChange: Change = {
+          id: `chg-${Date.now()}`,
+          monitorId: monitor.id,
+          title: `Price updated: ${fetchedPrice}`,
+          description: `Price detected as ${fetchedPrice} (was ${oldPrice}) on ${json.data.hostname || monitor.name}`,
+          oldValue: oldPrice,
+          newValue: fetchedPrice,
+          severity: 'High',
+          dataSource: json.data.source || monitor.checkSource,
+          detectedAt: now,
+        };
+        setChanges((prev) => [newChange, ...prev]);
+      }
+
+      // تحديث بيانات المراقب
+      setMonitors((prev) =>
+        prev.map((m) =>
+          m.id === id
+            ? {
+                ...m,
+                lastValue: fetchedPrice,
+                lastChecked: now,
+                checkSource: json.data.source || m.checkSource,
+              }
+            : m
+        )
+      );
+
+      return { success: true, message: `Live check complete. Price: ${fetchedPrice}` };
+    } catch {
+      return { success: false, message: 'Failed to communicate with scrape engine' };
+    }
+  };
+
+  const getMonitor = (id: string) => monitors.find((m) => m.id === id);
+
+  return {
+    monitors,
+    changes,
+    addMonitor,
+    toggleMonitorStatus,
+    checkMonitor,
+    getMonitor,
+  };
+}
+
+export function formatDate(dateString: string): string {
+  try {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  } catch {
+    return dateString;
+  }
+}
+
+export function formatDateTime(dateString: string): string {
+  try {
+    return new Date(dateString).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return dateString;
+  }
+}
+
+export function getTimeAgo(dateString: string): string {
+  try {
+    const diff = Date.now() - new Date(dateString).getTime();
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  } catch {
+    return dateString;
+  }
+}
