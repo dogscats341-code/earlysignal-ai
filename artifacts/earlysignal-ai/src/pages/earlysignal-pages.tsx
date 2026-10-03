@@ -775,3 +775,42 @@ export function ChangeDetailPage() {
     </AppPage>
   );
 }
+// --- Alerts & 404 Pages ---
+
+export function AlertsPage() {
+  const { changes, monitors } = useDemoData();
+  return (
+    <AppPage>
+      <PageIntro
+        eyebrow="Workspace / alerts"
+        title="All System Alerts"
+        description="Complete feed of price updates and detected changes across all monitors."
+      />
+      <div className="card card-pad" style={{ marginTop: 20 }}>
+        <div className="section-heading" style={{ marginBottom: 16 }}>
+          <h2>All Detected Signals ({changes.length})</h2>
+        </div>
+        {changes.length === 0 ? (
+          <EmptyState title="No alerts yet" copy="When a monitor detects a price or status change, it will show up here." />
+        ) : (
+          <div className="signal-list">
+            {changes.map((change) => (
+              <SignalRow key={change.id} change={change} monitor={monitors.find((m) => m.id === change.monitorId)} />
+            ))}
+          </div>
+        )}
+      </div>
+    </AppPage>
+  );
+}
+
+export function NotFoundPage() {
+  return (
+    <InvalidState
+      title="404 - Page Not Found"
+      copy="The page you are looking for does not exist or has been moved."
+      href="/dashboard"
+      label="Return to Dashboard"
+    />
+  );
+}
