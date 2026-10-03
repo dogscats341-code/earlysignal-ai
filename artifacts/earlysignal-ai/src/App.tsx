@@ -1,12 +1,14 @@
 import { Route, Switch } from 'wouter';
 import {
+  AlertsPage,
   ChangeDetailPage,
   DashboardPage,
   LandingPage,
   MonitorDetailPage,
   MonitorsPage,
   NewMonitorPage,
-} from '@/components/earlysignal-pages';
+  NotFoundPage,
+} from '@/pages/earlysignal-pages';
 
 export default function App() {
   return (
@@ -17,9 +19,8 @@ export default function App() {
       <Route path="/monitors/new" component={NewMonitorPage} />
       <Route path="/monitors/:id" component={MonitorDetailPage} />
       <Route path="/changes/:id" component={ChangeDetailPage} />
-      <Route>
-        <DashboardPage />
-      </Route>
+      <Route path="/alerts" component={AlertsPage} />
+      <Route component={NotFoundPage} />
     </Switch>
   );
 }
