@@ -28,11 +28,49 @@ export interface Change {
   detectedAt: string;
 }
 
+// ✂️ دالة اختصار وتنظيف الروابط الذكية
+export function cleanAndShortenUrl(rawUrl: string): string {
+  try {
+    const parsed = new URL(rawUrl.trim());
+    const hostname = parsed.hostname.toLowerCase();
+
+    // 1. اختصار روابط أمازون (استخراج معرّف المنتج ASIN فقط)
+    if (hostname.includes('amazon')) {
+      const asinMatch = parsed.pathname.match(/\/(dp|gp\/product)\/([A-Z0-9]{10})/i);
+      if (asinMatch && asinMatch[2]) {
+        return `https://${parsed.hostname}/dp/${asinMatch[2]}`;
+      }
+    }
+
+    // 2. اختصار روابط Etsy (حذف معلمات التتبع وإبقاء معرف المنتج)
+    if (hostname.includes('etsy')) {
+      const etsyMatch = parsed.pathname.match(/\/listing\/(\d+)/i);
+      if (etsyMatch && etsyMatch[1]) {
+        return `https://${parsed.hostname}/listing/${etsyMatch[1]}`;
+      }
+      return `${parsed.origin}${parsed.pathname}`;
+    }
+
+    // 3. تنظيف أي رابط آخر من معلمات التتبع الطويلة (UTM, Ref, Context)
+    const cleanParams = new URLSearchParams();
+    parsed.searchParams.forEach((value, key) => {
+      if (!key.startsWith('utm_') && !key.startsWith('ref') && !key.includes('click') && !key.includes('fbclid')) {
+        cleanParams.append(key, value);
+      }
+    });
+
+    const queryString = cleanParams.toString();
+    return `${parsed.origin}${parsed.pathname}${queryString ? '?' + queryString : ''}`;
+  } catch {
+    return rawUrl;
+  }
+}
+
 const INITIAL_MONITORS: Monitor[] = [
   {
     id: 'mon-1',
     name: 'Jumia Morocco - iPhone 15',
-    websiteUrl: 'https://www.jumia.ma',
+    websiteUrl: 'https://www.jumia.ma/iphone-15.html',
     monitorType: 'Product Price',
     status: 'active',
     lastChecked: new Date().toISOString(),
@@ -40,32 +78,9 @@ const INITIAL_MONITORS: Monitor[] = [
     checkSource: 'jumia.ma Live',
     createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
   },
-  {
-    id: 'mon-2',
-    name: 'Iris.ma - Gaming Laptop',
-    websiteUrl: 'https://www.iris.ma',
-    monitorType: 'Product Price',
-    status: 'active',
-    lastChecked: new Date().toISOString(),
-    lastValue: '8,990 DH',
-    checkSource: 'iris.ma Live',
-    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-  },
 ];
 
-const INITIAL_CHANGES: Change[] = [
-  {
-    id: 'chg-1',
-    monitorId: 'mon-1',
-    title: 'Price decreased by 5%',
-    description: 'Product price dropped from 12,099 DH to 11,499 DH on Jumia.',
-    oldValue: '12,099 DH',
-    newValue: '11,499 DH',
-    severity: 'High',
-    dataSource: 'jumia.ma Live',
-    detectedAt: new Date(Date.now() - 1000 * 60 * 35).toISOString(),
-  },
-];
+const INITIAL_CHANGES: Change[] = [];
 
 function useProvideDemoData() {
   const [monitors, setMonitors] = useState<Monitor[]>(() => {
@@ -98,16 +113,20 @@ function useProvideDemoData() {
     } catch {}
   }, [changes]);
 
+  // إضافة المراقبة مع اختصار الرابط تلقائياً
   const addMonitor = async (data: { name: string; websiteUrl: string; monitorType: MonitorType }): Promise<Monitor> => {
+    // تطبيق عملية الاختصار التلقائية
+    const shortenedUrl = cleanAndShortenUrl(data.websiteUrl);
+
     let hostname = 'website';
     try {
-      hostname = new URL(data.websiteUrl).hostname.replace('www.', '');
+      hostname = new URL(shortenedUrl).hostname.replace('www.', '');
     } catch {}
 
     const newMonitor: Monitor = {
       id: `mon-${Date.now()}`,
       name: data.name,
-      websiteUrl: data.websiteUrl,
+      websiteUrl: shortenedUrl, // حفظ الرابط المختصر النظيف
       monitorType: data.monitorType,
       status: 'active',
       lastChecked: new Date().toISOString(),
