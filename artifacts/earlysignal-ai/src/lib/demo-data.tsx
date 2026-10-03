@@ -4,6 +4,12 @@ export type MonitorStatus = 'active' | 'paused';
 export type MonitorType = 'Product Price' | 'Product Availability' | 'Product Catalog' | 'Website Content';
 export type Severity = 'High' | 'Medium' | 'Low';
 
+export interface CatalogItem {
+  title: string;
+  url: string;
+  price?: string;
+}
+
 export interface Monitor {
   id: string;
   name: string;
@@ -12,6 +18,10 @@ export interface Monitor {
   status: MonitorStatus;
   lastChecked: string;
   lastValue?: string;
+  originalPrice?: string;
+  discount?: string;
+  availability?: string;
+  catalogItems?: CatalogItem[];
   checkSource: string;
   createdAt: string;
 }
@@ -28,59 +38,35 @@ export interface Change {
   detectedAt: string;
 }
 
-// ✂️ دالة اختصار وتنظيف الروابط الذكية
-export function cleanAndShortenUrl(rawUrl: string): string {
-  try {
-    const parsed = new URL(rawUrl.trim());
-    const hostname = parsed.hostname.toLowerCase();
-
-    // 1. اختصار روابط أمازون (استخراج معرّف المنتج ASIN فقط)
-    if (hostname.includes('amazon')) {
-      const asinMatch = parsed.pathname.match(/\/(dp|gp\/product)\/([A-Z0-9]{10})/i);
-      if (asinMatch && asinMatch[2]) {
-        return `https://${parsed.hostname}/dp/${asinMatch[2]}`;
-      }
-    }
-
-    // 2. اختصار روابط Etsy (حذف معلمات التتبع وإبقاء معرف المنتج)
-    if (hostname.includes('etsy')) {
-      const etsyMatch = parsed.pathname.match(/\/listing\/(\d+)/i);
-      if (etsyMatch && etsyMatch[1]) {
-        return `https://${parsed.hostname}/listing/${etsyMatch[1]}`;
-      }
-      return `${parsed.origin}${parsed.pathname}`;
-    }
-
-    // 3. تنظيف أي رابط آخر من معلمات التتبع الطويلة (UTM, Ref, Context)
-    const cleanParams = new URLSearchParams();
-    parsed.searchParams.forEach((value, key) => {
-      if (!key.startsWith('utm_') && !key.startsWith('ref') && !key.includes('click') && !key.includes('fbclid')) {
-        cleanParams.append(key, value);
-      }
-    });
-
-    const queryString = cleanParams.toString();
-    return `${parsed.origin}${parsed.pathname}${queryString ? '?' + queryString : ''}`;
-  } catch {
-    return rawUrl;
-  }
-}
-
 const INITIAL_MONITORS: Monitor[] = [
   {
     id: 'mon-1',
-    name: 'Jumia Morocco - iPhone 15',
-    websiteUrl: 'https://www.jumia.ma/iphone-15.html',
+    name: 'Amazon Trendy Store - Top',
+    websiteUrl: 'https://www.amazon.com/dp/B0BW8ZFMDJ',
     monitorType: 'Product Price',
     status: 'active',
     lastChecked: new Date().toISOString(),
-    lastValue: '11,499 DH',
-    checkSource: 'jumia.ma Live',
-    createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+    lastValue: '$5.59',
+    originalPrice: '$14.99',
+    discount: '-63%',
+    checkSource: 'amazon.com Live',
+    createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
   },
 ];
 
-const INITIAL_CHANGES: Change[] = [];
+const INITIAL_CHANGES: Change[] = [
+  {
+    id: 'chg-1',
+    monitorId: 'mon-1',
+    title: 'Price dropped by 63%',
+    description: 'Special Deal detected: Price decreased from $14.99 to $5.59 (-63% discount).',
+    oldValue: '$14.99',
+    newValue: '$5.59 (-63%)',
+    severity: 'High',
+    dataSource: 'amazon.com Live',
+    detectedAt: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+  },
+];
 
 function useProvideDemoData() {
   const [monitors, setMonitors] = useState<Monitor[]>(() => {
@@ -113,20 +99,16 @@ function useProvideDemoData() {
     } catch {}
   }, [changes]);
 
-  // إضافة المراقبة مع اختصار الرابط تلقائياً
   const addMonitor = async (data: { name: string; websiteUrl: string; monitorType: MonitorType }): Promise<Monitor> => {
-    // تطبيق عملية الاختصار التلقائية
-    const shortenedUrl = cleanAndShortenUrl(data.websiteUrl);
-
     let hostname = 'website';
     try {
-      hostname = new URL(shortenedUrl).hostname.replace('www.', '');
+      hostname = new URL(data.websiteUrl).hostname.replace('www.', '');
     } catch {}
 
     const newMonitor: Monitor = {
       id: `mon-${Date.now()}`,
       name: data.name,
-      websiteUrl: shortenedUrl, // حفظ الرابط المختصر النظيف
+      websiteUrl: data.websiteUrl,
       monitorType: data.monitorType,
       status: 'active',
       lastChecked: new Date().toISOString(),
@@ -153,7 +135,7 @@ function useProvideDemoData() {
       const res = await fetch('/api/scrape', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: monitor.websiteUrl }),
+        body: JSON.stringify({ url: monitor.websiteUrl, monitorType: monitor.monitorType }),
       });
 
       const json = await res.json();
@@ -165,39 +147,58 @@ function useProvideDemoData() {
         };
       }
 
-      const fetchedPrice = json.data.price;
-      const oldPrice = monitor.lastValue || 'N/A';
+      const fetchedData = json.data;
       const now = new Date().toISOString();
+      const oldPrice = monitor.lastValue || 'N/A';
 
-      if (fetchedPrice && fetchedPrice !== oldPrice && oldPrice !== 'Pending check') {
+      // 1. تسجيل التغيير عند اكتشاف تخفيض أو سعر جديد
+      if (fetchedData.price && fetchedData.price !== oldPrice && oldPrice !== 'Pending check') {
+        const titleText = fetchedData.discount
+          ? `Price dropped: ${fetchedData.price} (${fetchedData.discount})`
+          : `Price updated: ${fetchedData.price}`;
+
+        const descText = fetchedData.originalPrice
+          ? `Product price updated to ${fetchedData.price} (List price was ${fetchedData.originalPrice}).`
+          : `Detected new price ${fetchedData.price} on ${fetchedData.hostname}.`;
+
         const newChange: Change = {
           id: `chg-${Date.now()}`,
           monitorId: monitor.id,
-          title: `Price updated: ${fetchedPrice}`,
-          description: `Price detected as ${fetchedPrice} (was ${oldPrice}) on ${json.data.hostname || monitor.name}`,
-          oldValue: oldPrice,
-          newValue: fetchedPrice,
+          title: titleText,
+          description: descText,
+          oldValue: monitor.originalPrice || oldPrice,
+          newValue: fetchedData.discount ? `${fetchedData.price} (${fetchedData.discount})` : fetchedData.price,
           severity: 'High',
-          dataSource: json.data.source || monitor.checkSource,
+          dataSource: fetchedData.source || monitor.checkSource,
           detectedAt: now,
         };
         setChanges((prev) => [newChange, ...prev]);
       }
 
+      // 2. تحديث المونيتور بالمعلومات الكاملة (السعر الجديد والقديم والخصم والكتالوج)
       setMonitors((prev) =>
         prev.map((m) =>
           m.id === id
             ? {
                 ...m,
-                lastValue: fetchedPrice,
+                lastValue: fetchedData.price,
+                originalPrice: fetchedData.originalPrice || m.originalPrice,
+                discount: fetchedData.discount || m.discount,
+                availability: fetchedData.availability || m.availability,
+                catalogItems: fetchedData.catalogItems || m.catalogItems,
                 lastChecked: now,
-                checkSource: json.data.source || m.checkSource,
+                checkSource: fetchedData.source || m.checkSource,
               }
             : m
         )
       );
 
-      return { success: true, message: `Live check complete. Price: ${fetchedPrice}` };
+      return {
+        success: true,
+        message: fetchedData.discount
+          ? `Live check complete: ${fetchedData.price} (${fetchedData.discount} discount from ${fetchedData.originalPrice})`
+          : `Live check complete: ${fetchedData.price}`,
+      };
     } catch {
       return { success: false, message: 'Failed to communicate with scrape engine' };
     }
@@ -219,7 +220,7 @@ const DemoDataContext = createContext<ReturnType<typeof useProvideDemoData> | nu
 
 export function DemoDataProvider({ children }: { children: React.ReactNode }) {
   const data = useProvideDemoData();
-  return <DemoDataContext.Provider value={data}>{children}</DemoDataContext.Provider>;
+  return React.createElement(DemoDataContext.Provider, { value: data }, children);
 }
 
 export function useDemoData() {
@@ -232,11 +233,7 @@ export function useDemoData() {
 
 export function formatDate(dateString: string): string {
   try {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
+    return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   } catch {
     return dateString;
   }
@@ -244,12 +241,7 @@ export function formatDate(dateString: string): string {
 
 export function formatDateTime(dateString: string): string {
   try {
-    return new Date(dateString).toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return new Date(dateString).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   } catch {
     return dateString;
   }
