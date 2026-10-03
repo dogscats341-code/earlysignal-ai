@@ -200,7 +200,7 @@ const DemoDataContext = createContext<ReturnType<typeof useProvideDemoData> | nu
 
 export function DemoDataProvider({ children }: { children: React.ReactNode }) {
   const data = useProvideDemoData();
-  return <DemoDataContext.Provider value={data}>{children}</DemoDataContext.Provider>;
+  return React.createElement(DemoDataContext.Provider, { value: data }, children);
 }
 
 export function useDemoData() {
