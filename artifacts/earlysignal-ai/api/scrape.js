@@ -9,8 +9,7 @@ export default async function handler(req, res) {
   );
 
   if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
+    return res.status(200).end();
   }
 
   if (req.method !== 'POST') {
@@ -27,61 +26,13 @@ export default async function handler(req, res) {
     const parsedUrl = new URL(url);
     const hostname = parsedUrl.hostname.replace('www.', '');
 
-    // Advanced User-Agent list to bypass Cloudflare/Bot detectors
-    const userAgents = [
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
-    ];
-    const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
+    // Layer 1: Direct Fetching
+    let price = await fetchDirect(url, hostname);
 
-    // Fetching with realistic browser headers
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'User-Agent': randomUserAgent,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7,ar;q=0.6',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
-        'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
-        'Sec-Ch-Ua-Mobile': '?0',
-        'Sec-Ch-Ua-Platform': '"Windows"',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1',
-      },
-      redirect: 'follow',
-    });
-
-    if (response.status === 403 || response.status === 503) {
-      return res.status(200).json({
-        success: false,
-        data: {
-          price: 'BLOCKED',
-          hostname,
-          source: `${hostname} Live`,
-          error: 'Website blocking request (Cloudflare/Anti-bot)',
-        },
-      });
+    // Layer 2: Proxy Bypass Fetching (For Amazon, Etsy & Cloudflare protected sites)
+    if (!price) {
+      price = await fetchViaProxy(url, hostname);
     }
-
-    if (!response.ok) {
-      return res.status(200).json({
-        success: false,
-        data: {
-          price: 'HTTP ERROR',
-          hostname,
-          source: `${hostname} Live`,
-          error: `HTTP Error ${response.status}`,
-        },
-      });
-    }
-
-    const html = await response.text();
-    let price = extractPriceFromHTML(html, hostname);
 
     if (price) {
       return res.status(200).json({
@@ -101,7 +52,7 @@ export default async function handler(req, res) {
         price: 'NOT FOUND',
         hostname,
         source: `${hostname} Live`,
-        error: 'Could not detect price on page',
+        error: 'Could not extract price from page',
       },
     });
   } catch (err) {
@@ -112,79 +63,106 @@ export default async function handler(req, res) {
   }
 }
 
-function extractPriceFromHTML(html, hostname) {
-  // 1. JSON-LD Parser (Works for Etsy, Jumia, Shopify, and standard e-commerce)
+async function fetchDirect(url, hostname) {
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9,fr;q=0.8,ar;q=0.7',
+      },
+      redirect: 'follow',
+    });
+
+    if (!response.ok) return null;
+    const html = await response.text();
+    return parsePriceFromHTML(html, hostname);
+  } catch {
+    return null;
+  }
+}
+
+async function fetchViaProxy(targetUrl, hostname) {
+  try {
+    // Uses Jina AI reader service to bypass anti-bot, Cloudflare, and Amazon CAPTCHA barriers
+    const proxyUrl = `https://r.jina.ai/${targetUrl}`;
+    const response = await fetch(proxyUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        'X-No-Cache': 'true',
+      },
+    });
+
+    if (!response.ok) return null;
+    const text = await response.text();
+    return parsePriceFromText(text, hostname);
+  } catch {
+    return null;
+  }
+}
+
+function parsePriceFromHTML(html, hostname) {
+  // 1. JSON-LD Structured Data
   const jsonLdMatches = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi);
   if (jsonLdMatches) {
     for (const match of jsonLdMatches) {
       try {
         const jsonContent = match.replace(/<script[^>]*>/i, '').replace(/<\/script>/i, '').trim();
         const data = JSON.parse(jsonContent);
-
         const items = Array.isArray(data) ? data : [data];
         for (const item of items) {
           const offers = item?.offers || (item['@type'] === 'Product' ? item.offers : null);
           if (offers) {
             const offerObj = Array.isArray(offers) ? offers[0] : offers;
             if (offerObj?.price) {
-              const currency = offerObj.priceCurrency || (hostname.includes('.fr') ? '€' : 'DH');
+              const currency = offerObj.priceCurrency || (hostname.includes('.fr') ? '€' : '$');
               return `${offerObj.price} ${currency}`.trim();
             }
           }
         }
-      } catch (e) {
-        // Continue if JSON parse fails
-      }
+      } catch {}
     }
   }
 
-  // 2. OpenGraph Meta Tags (Meta tags often bypass DOM obfuscation)
-  const ogPriceMatch = html.match(/property=["'](og:price:amount|product:price:amount)["']\s+content=["']([^"']+)["']/i) ||
-                       html.match(/content=["']([^"']+)["']\s+property=["'](og:price:amount|product:price:amount)["']/i);
-  if (ogPriceMatch && ogPriceMatch[1]) {
+  // 2. OpenGraph Meta Tags
+  const ogPriceMatch = html.match(/property=["'](og:price:amount|product:price:amount)["']\s+content=["']([^"']+)["']/i);
+  if (ogPriceMatch && ogPriceMatch[2]) {
     const currencyMatch = html.match(/property=["'](og:price:currency|product:price:currency)["']\s+content=["']([^"']+)["']/i);
-    const currency = currencyMatch ? currencyMatch[2] : (hostname.includes('.fr') ? '€' : 'DH');
-    return `${ogPriceMatch[1]} ${currency}`.trim();
+    const currency = currencyMatch ? currencyMatch[2] : (hostname.includes('.fr') ? '€' : '$');
+    return `${ogPriceMatch[2]} ${currency}`.trim();
   }
 
-  // 3. Amazon Special Extractor
-  if (hostname.includes('amazon')) {
-    // Amazon offscreen price
-    const amazonOffscreen = html.match(/<span class="a-offscreen">([^<]+)<\/span>/i);
-    if (amazonOffscreen && amazonOffscreen[1]) {
-      return amazonOffscreen[1].trim();
-    }
-    // Amazon price whole + fraction
-    const wholeMatch = html.match(/<span class="a-price-whole">([^<]+)<\/span>/i);
-    const fractionMatch = html.match(/<span class="a-price-fraction">([^<]+)<\/span>/i);
-    if (wholeMatch && wholeMatch[1]) {
-      const whole = wholeMatch[1].replace(/[^\d.,]/g, '');
-      const fraction = fractionMatch ? fractionMatch[1] : '00';
-      const currency = html.match(/<span class="a-price-symbol">([^<]+)<\/span>/i)?.[1] || '€';
-      return `${whole},${fraction} ${currency}`.trim();
-    }
+  return parsePriceFromText(html, hostname);
+}
+
+function parsePriceFromText(text, hostname) {
+  // Amazon Price Regex Patterns
+  const amazonMatch =
+    text.match(/Price:\s*([$€£]\s*\d+[\.,]\d{2})/i) ||
+    text.match(/([$€£]\s*\d+[\.,]\d{2})/i) ||
+    text.match(/(\d+[\.,]\d{2}\s*[$€£])/i);
+
+  if (amazonMatch && amazonMatch[1]) {
+    return amazonMatch[1].trim();
   }
 
-  // 4. Etsy Special Extractor
-  if (hostname.includes('etsy')) {
-    const etsyPriceMatch = html.match(/<p class="[^"]*wt-text-title-01[^"]*">([^<]+)<\/p>/i) ||
-                           html.match(/class="[^"]*currency-value[^"]*">([^<]+)<\/span>/i);
-    if (etsyPriceMatch && etsyPriceMatch[1]) {
-      return etsyPriceMatch[1].trim();
-    }
-  }
-
-  // 5. General Currency Regex Fallback (€, DH, EUR, $)
-  const regexPatterns = [
-    /(\d+[\.,]\d{2})\s*(€|EUR|DH|MAD|\$)/i,
-    /(€|EUR|DH|MAD|\$)\s*(\d+[\.,]\d{2})/i,
-    /(\d+[\.,]\d{2})\s*&nbsp;\s*(€|EUR)/i
+  // Universal Currency Regex
+  const patterns = [
+    /(\$\s*\d+[\.,]\d{2})/,
+    /(\d+[\.,]\d{2}\s*€)/,
+    /(\d+[\.,]\d{2}\s*DH)/i,
+    /(EUR\s*\d+[\.,]\d{2})/i,
+    /(USD\s*\d+[\.,]\d{2})/i,
+    /(\d+[\.,]\d{2}\s*MAD)/i,
   ];
 
-  for (const regex of regexPatterns) {
-    const match = html.match(regex);
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
     if (match) {
-      return match[0].replace('&nbsp;', ' ').trim();
+      return match[0].trim();
     }
   }
 
