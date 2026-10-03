@@ -1,222 +1,192 @@
 export default async function handler(req, res) {
-  // إعدادات CORS
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
-  if (req.method === 'OPTIONS') return res.status(200).end()
+  // 1. Handling CORS
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+  );
 
-  let body = req.body
-  if (typeof body === 'string') {
-    try { body = JSON.parse(body) } catch {}
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
   }
 
-  const { url } = body || {}
-  if (!url) {
-    return res.status(400).json({ success: false, error: 'URL parameter is required' })
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, error: 'Method not allowed' });
   }
 
-  let hostname = 'unknown'
+  const { url } = req.body || {};
+
+  if (!url || typeof url !== 'string') {
+    return res.status(400).json({ success: false, error: 'URL is required' });
+  }
+
   try {
-    hostname = new URL(url).hostname.replace(/^www\./, '')
-  } catch {
-    return res.status(400).json({ success: false, error: 'Invalid URL format' })
-  }
+    const parsedUrl = new URL(url);
+    const hostname = parsedUrl.hostname.replace('www.', '');
 
-  const realSource = `${hostname} Live`
+    // Advanced User-Agent list to bypass Cloudflare/Bot detectors
+    const userAgents = [
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
+    ];
+    const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
 
-  // 1. استراتيجيات الجلب (Direct Fetch + Fallback Proxies)
-  const fetchers = [
-    // الاستراتيجية 1: الطلب المباشر بـ User-Agent لمتصفح حقيقي (الأسرع والأنجح)
-    async (u) => {
-      const r = await fetch(u, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-          'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
-          'Cache-Control': 'no-cache'
+    // Fetching with realistic browser headers
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': randomUserAgent,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7,ar;q=0.6',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1',
+      },
+      redirect: 'follow',
+    });
+
+    if (response.status === 403 || response.status === 503) {
+      return res.status(200).json({
+        success: false,
+        data: {
+          price: 'BLOCKED',
+          hostname,
+          source: `${hostname} Live`,
+          error: 'Website blocking request (Cloudflare/Anti-bot)',
         },
-        signal: AbortSignal.timeout(8000)
-      })
-      if (!r.ok) throw new Error(`HTTP status ${r.status}`)
-      return await r.text()
-    },
-    // الاستراتيجية 2: Microlink API
-    async (u) => {
-      const r = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(u)}&meta=true`, {
-        signal: AbortSignal.timeout(12000)
-      })
-      const j = await r.json()
-      return j.data?.html || j.data?.description || ''
-    },
-    // الاستراتيجية 3: AllOrigins Proxy
-    async (u) => {
-      const r = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`, {
-        signal: AbortSignal.timeout(10000)
-      })
-      return await r.text()
+      });
     }
-  ]
 
-  let html = ''
-  let usedStrategy = 'direct-fetch'
+    if (!response.ok) {
+      return res.status(200).json({
+        success: false,
+        data: {
+          price: 'HTTP ERROR',
+          hostname,
+          source: `${hostname} Live`,
+          error: `HTTP Error ${response.status}`,
+        },
+      });
+    }
 
-  for (let i = 0; i < fetchers.length; i++) {
-    try {
-      const content = await fetchers[i](url)
-      if (content && content.length > 800) {
-        html = content
-        usedStrategy = i === 0 ? 'direct-fetch' : i === 1 ? 'microlink-render' : 'allorigins-proxy'
-        if (content.match(/price|prc|DH|MAD|\$|€|offer|product/i)) break
-      }
-    } catch {}
-  }
+    const html = await response.text();
+    let price = extractPriceFromHTML(html, hostname);
 
-  if (!html) {
+    if (price) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          price,
+          hostname,
+          source: `${hostname} Live`,
+          checkedAt: new Date().toISOString(),
+        },
+      });
+    }
+
     return res.status(200).json({
       success: false,
       data: {
-        title: `BLOCKED - ${hostname}`,
-        price: 'BLOCKED',
-        numericPrice: 0,
-        availability: 'All proxies and direct fetch blocked',
-        url,
-        source: realSource,
-        checkedAt: new Date().toISOString()
-      }
-    })
+        price: 'NOT FOUND',
+        hostname,
+        source: `${hostname} Live`,
+        error: 'Could not detect price on page',
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      error: err.message || 'Internal Scraper Error',
+    });
   }
+}
 
-  // دالة لتنظيف الرموز الخاصة في HTML
-  const decodeEntities = (str) => {
-    if (!str) return ''
-    return str
-      .replace(/&quot;/g, '"')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&#39;/g, "'")
-      .replace(/&nbsp;/g, ' ')
-  }
+function extractPriceFromHTML(html, hostname) {
+  // 1. JSON-LD Parser (Works for Etsy, Jumia, Shopify, and standard e-commerce)
+  const jsonLdMatches = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi);
+  if (jsonLdMatches) {
+    for (const match of jsonLdMatches) {
+      try {
+        const jsonContent = match.replace(/<script[^>]*>/i, '').replace(/<\/script>/i, '').trim();
+        const data = JSON.parse(jsonContent);
 
-  let title = ''
-  let price = ''
-  let isAvailable = true
-
-  // 2. محاولة استخراج البيانات المنسقة JSON-LD (Schema.org) أولاً
-  try {
-    const jsonLdMatches = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)
-    if (jsonLdMatches) {
-      for (const match of jsonLdMatches) {
-        const cleanContent = match.replace(/<script[^>]*>/i, '').replace(/<\/script>/i, '')
-        try {
-          const parsed = JSON.parse(cleanContent)
-          const items = Array.isArray(parsed) ? parsed : [parsed]
-
-          for (const item of items) {
-            const type = item['@type']
-            if (type === 'Product' || (Array.isArray(type) && type.includes('Product'))) {
-              if (item.name) title = item.name
-
-              const offers = Array.isArray(item.offers) ? item.offers[0] : item.offers
-              if (offers) {
-                if (offers.price) price = String(offers.price)
-                if (offers.priceCurrency && price && !price.includes(offers.priceCurrency)) {
-                  price = `${price} ${offers.priceCurrency}`
-                }
-                if (offers.availability) {
-                  isAvailable = !offers.availability.includes('OutOfStock')
-                }
-              }
+        const items = Array.isArray(data) ? data : [data];
+        for (const item of items) {
+          const offers = item?.offers || (item['@type'] === 'Product' ? item.offers : null);
+          if (offers) {
+            const offerObj = Array.isArray(offers) ? offers[0] : offers;
+            if (offerObj?.price) {
+              const currency = offerObj.priceCurrency || (hostname.includes('.fr') ? '€' : 'DH');
+              return `${offerObj.price} ${currency}`.trim();
             }
           }
-        } catch {}
+        }
+      } catch (e) {
+        // Continue if JSON parse fails
       }
     }
-  } catch {}
-
-  // 3. استخراج العنوان الثانوي (Fallback)
-  if (!title) {
-    title = html.match(/<meta property="og:title" content="([^"]+)"/i)?.[1] ||
-            html.match(/<title[^>]*>([^<]{3,150})<\/title>/i)?.[1] ||
-            hostname
-  }
-  title = decodeEntities(title).trim().slice(0, 130)
-
-  // 4. استخراج السعر الثانوي (Fallback)
-  if (!price) {
-    price = html.match(/"price"\s*:\s*"?([\d.,]+)"?/i)?.[1] ||
-            html.match(/<span[^>]*itemprop="price"[^>]*content="([^"]+)"/i)?.[1] ||
-            html.match(/<meta property="product:price:amount" content="([^"]+)"/i)?.[1] ||
-            html.match(/class="[^"]*(?:current-price|prc|price|product-price)[^"]*"[^>]*>([^<]+)/i)?.[1] ||
-            html.match(/(\d[\d\s.,]*\s*(?:DH|MAD|USD|EUR|\$|€))/i)?.[1] ||
-            html.match(/(?:DH|MAD|\$|€)\s*([\d\s.,]+)/i)?.[0] || ''
   }
 
-  price = decodeEntities(price).trim()
-
-  if (!price) {
-    return res.status(200).json({
-      success: false,
-      data: {
-        title,
-        price: 'PRICE_NOT_FOUND',
-        numericPrice: 0,
-        availability: `Fetched ${html.length} chars but price selector missed`,
-        url,
-        source: realSource,
-        checkedAt: new Date().toISOString(),
-        hostname
-      }
-    })
+  // 2. OpenGraph Meta Tags (Meta tags often bypass DOM obfuscation)
+  const ogPriceMatch = html.match(/property=["'](og:price:amount|product:price:amount)["']\s+content=["']([^"']+)["']/i) ||
+                       html.match(/content=["']([^"']+)["']\s+property=["'](og:price:amount|product:price:amount)["']/i);
+  if (ogPriceMatch && ogPriceMatch[1]) {
+    const currencyMatch = html.match(/property=["'](og:price:currency|product:price:currency)["']\s+content=["']([^"']+)["']/i);
+    const currency = currencyMatch ? currencyMatch[2] : (hostname.includes('.fr') ? '€' : 'DH');
+    return `${ogPriceMatch[1]} ${currency}`.trim();
   }
 
-  // تنسيق العملة تلقائياً
-  if (!/DH|MAD|\$|€|£/i.test(price)) {
-    price = hostname.endsWith('.ma') ? `${price} DH` : `$${price}`
-  }
-
-  // 5. تحويل السعر إلى رقم صحيح بشكل دقيق (معالجة الفواصل والكسور)
-  const parseNumericPrice = (str) => {
-    const rawDigits = str.replace(/[^\d.,]/g, '')
-    if (!rawDigits) return 0
-
-    let clean = rawDigits
-    if (clean.includes(',') && clean.includes('.')) {
-      if (clean.indexOf(',') < clean.indexOf('.')) {
-        clean = clean.replace(/,/g, '')
-      } else {
-        clean = clean.replace(/\./g, '').replace(',', '.')
-      }
-    } else if (clean.includes(',')) {
-      const parts = clean.split(',')
-      if (parts[1] && parts[1].length === 2) {
-        clean = clean.replace(',', '.')
-      } else {
-        clean = clean.replace(/,/g, '')
-      }
+  // 3. Amazon Special Extractor
+  if (hostname.includes('amazon')) {
+    // Amazon offscreen price
+    const amazonOffscreen = html.match(/<span class="a-offscreen">([^<]+)<\/span>/i);
+    if (amazonOffscreen && amazonOffscreen[1]) {
+      return amazonOffscreen[1].trim();
     }
-    return Math.round(parseFloat(clean)) || 0
-  }
-
-  const numericPrice = parseNumericPrice(price)
-
-  // 6. التحقق من توفر المنتج من محتوى الصفحة
-  if (html.match(/out of stock|rupture de stock|غير متوفر|sold out/i)) {
-    isAvailable = false
-  }
-
-  return res.status(200).json({
-    success: true,
-    data: {
-      title,
-      price,
-      numericPrice,
-      availability: isAvailable ? 'In stock' : 'Out of stock',
-      url,
-      source: realSource,
-      checkedAt: new Date().toISOString(),
-      strategy: usedStrategy,
-      hostname
+    // Amazon price whole + fraction
+    const wholeMatch = html.match(/<span class="a-price-whole">([^<]+)<\/span>/i);
+    const fractionMatch = html.match(/<span class="a-price-fraction">([^<]+)<\/span>/i);
+    if (wholeMatch && wholeMatch[1]) {
+      const whole = wholeMatch[1].replace(/[^\d.,]/g, '');
+      const fraction = fractionMatch ? fractionMatch[1] : '00';
+      const currency = html.match(/<span class="a-price-symbol">([^<]+)<\/span>/i)?.[1] || '€';
+      return `${whole},${fraction} ${currency}`.trim();
     }
-  })
+  }
+
+  // 4. Etsy Special Extractor
+  if (hostname.includes('etsy')) {
+    const etsyPriceMatch = html.match(/<p class="[^"]*wt-text-title-01[^"]*">([^<]+)<\/p>/i) ||
+                           html.match(/class="[^"]*currency-value[^"]*">([^<]+)<\/span>/i);
+    if (etsyPriceMatch && etsyPriceMatch[1]) {
+      return etsyPriceMatch[1].trim();
+    }
+  }
+
+  // 5. General Currency Regex Fallback (€, DH, EUR, $)
+  const regexPatterns = [
+    /(\d+[\.,]\d{2})\s*(€|EUR|DH|MAD|\$)/i,
+    /(€|EUR|DH|MAD|\$)\s*(\d+[\.,]\d{2})/i,
+    /(\d+[\.,]\d{2})\s*&nbsp;\s*(€|EUR)/i
+  ];
+
+  for (const regex of regexPatterns) {
+    const match = html.match(regex);
+    if (match) {
+      return match[0].replace('&nbsp;', ' ').trim();
+    }
+  }
+
+  return null;
 }
