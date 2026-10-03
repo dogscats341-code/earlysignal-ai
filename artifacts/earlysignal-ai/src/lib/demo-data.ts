@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 
 export type MonitorStatus = 'active' | 'paused';
 export type MonitorType = 'Product Price' | 'Product Availability' | 'Product Catalog' | 'Website Content';
@@ -67,23 +67,35 @@ const INITIAL_CHANGES: Change[] = [
   },
 ];
 
-export function useDemoData() {
+function useProvideDemoData() {
   const [monitors, setMonitors] = useState<Monitor[]>(() => {
-    const saved = localStorage.getItem('earlysignal_monitors');
-    return saved ? JSON.parse(saved) : INITIAL_MONITORS;
+    try {
+      const saved = localStorage.getItem('earlysignal_monitors');
+      return saved ? JSON.parse(saved) : INITIAL_MONITORS;
+    } catch {
+      return INITIAL_MONITORS;
+    }
   });
 
   const [changes, setChanges] = useState<Change[]>(() => {
-    const saved = localStorage.getItem('earlysignal_changes');
-    return saved ? JSON.parse(saved) : INITIAL_CHANGES;
+    try {
+      const saved = localStorage.getItem('earlysignal_changes');
+      return saved ? JSON.parse(saved) : INITIAL_CHANGES;
+    } catch {
+      return INITIAL_CHANGES;
+    }
   });
 
   useEffect(() => {
-    localStorage.setItem('earlysignal_monitors', JSON.stringify(monitors));
+    try {
+      localStorage.setItem('earlysignal_monitors', JSON.stringify(monitors));
+    } catch {}
   }, [monitors]);
 
   useEffect(() => {
-    localStorage.setItem('earlysignal_changes', JSON.stringify(changes));
+    try {
+      localStorage.setItem('earlysignal_changes', JSON.stringify(changes));
+    } catch {}
   }, [changes]);
 
   const addMonitor = async (data: { name: string; websiteUrl: string; monitorType: MonitorType }): Promise<Monitor> => {
@@ -138,7 +150,6 @@ export function useDemoData() {
       const oldPrice = monitor.lastValue || 'N/A';
       const now = new Date().toISOString();
 
-      // تسجيل تغيّر جديد إذا اختلف السعر عن السعر السابق
       if (fetchedPrice && fetchedPrice !== oldPrice && oldPrice !== 'Pending check') {
         const newChange: Change = {
           id: `chg-${Date.now()}`,
@@ -154,7 +165,6 @@ export function useDemoData() {
         setChanges((prev) => [newChange, ...prev]);
       }
 
-      // تحديث بيانات المراقب
       setMonitors((prev) =>
         prev.map((m) =>
           m.id === id
@@ -184,6 +194,21 @@ export function useDemoData() {
     checkMonitor,
     getMonitor,
   };
+}
+
+const DemoDataContext = createContext<ReturnType<typeof useProvideDemoData> | null>(null);
+
+export function DemoDataProvider({ children }: { children: React.ReactNode }) {
+  const data = useProvideDemoData();
+  return <DemoDataContext.Provider value={data}>{children}</DemoDataContext.Provider>;
+}
+
+export function useDemoData() {
+  const context = useContext(DemoDataContext);
+  if (!context) {
+    return useProvideDemoData();
+  }
+  return context;
 }
 
 export function formatDate(dateString: string): string {
