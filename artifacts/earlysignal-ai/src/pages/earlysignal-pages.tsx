@@ -173,7 +173,7 @@ export function LandingPage() {
                 Create a monitor <Plus size={15} />
               </Link>
             </div>
-            <div className="hero-microcopy">LIVE DATA • REAL-TIME CHECKS • SUPABASE CONNECTED • BUILT FOR SCALE</div>
+            <div className="hero-microcopy">LIVE DATA • REAL-TIME CHECKS • BUILT FOR SCALE</div>
           </div>
           <div className="hero-visual" aria-label="Illustration of the EarlySignal dashboard">
             <div className="visual-frame">
@@ -243,7 +243,7 @@ export function LandingPage() {
             </div>
             <div className="value-item">
               <strong>Live & connected</strong>
-              <p>Connected to Supabase, real checks, real history. Not demo data — your data.</p>
+              <p>Connected to live web check APIs, real checks, real history. Not static data — your data.</p>
             </div>
             <div className="value-item">
               <strong>Actionable at a glance</strong>
@@ -261,7 +261,9 @@ export function LandingPage() {
 
 export function DashboardPage() {
   const { monitors, changes } = useDemoData();
-  const recentChanges = changes.slice().sort((a, b) => +new Date(b.detectedAt) - +new Date(a.detectedAt));
+  const recentChanges = useMemo(() => {
+    return changes.slice().sort((a, b) => +new Date(b.detectedAt) - +new Date(a.detectedAt));
+  }, [changes]);
   const highCount = changes.filter((change) => change.severity === 'High').length;
 
   return (
@@ -269,7 +271,7 @@ export function DashboardPage() {
       <PageIntro
         eyebrow="Workspace / live overview"
         title="Live Signal overview"
-        description="Real-time view of what changed across your monitored sites. Live data from Supabase."
+        description="Real-time view of what changed across your monitored sites."
         action={
           <span
             style={{
@@ -307,7 +309,7 @@ export function DashboardPage() {
           <div className="insight-kicker">Live monitoring</div>
           <h2 className="insight-title">Real data, real decisions.</h2>
           <p className="insight-copy">
-            Every monitor is connected to live checks. Track prices, stock, and content changes with real Supabase persistence.
+            Every monitor is connected to live checks. Track prices, stock, and content changes in real-time.
           </p>
           <div className="insight-stat">
             <strong>{monitors.length} live monitors</strong>
@@ -386,7 +388,7 @@ export function MonitorsPage() {
       <PageIntro
         eyebrow="Workspace / monitors"
         title="Live Monitors"
-        description="Your live watchlist. Every monitor runs real checks and saves to Supabase."
+        description="Your live watchlist. Every monitor runs real-time checks."
         action={
           <Link href="/monitors/new" className="btn btn-primary" data-testid="link-add-monitor">
             <Plus size={15} /> Add monitor
@@ -456,7 +458,7 @@ export function NewMonitorPage() {
       const monitor = await addMonitor({ name: name.trim(), websiteUrl: websiteUrl.trim(), monitorType });
       setLocation(`/monitors/${monitor.id}`);
     } catch {
-      setError('Could not save. Check Supabase connection and try again.');
+      setError('Could not save monitor. Please try again.');
     }
   };
 
@@ -465,7 +467,7 @@ export function NewMonitorPage() {
       <PageIntro
         eyebrow="Workspace / monitors / new"
         title="Add a live monitor"
-        description="Define a focused watch. Works with any public URL worldwide - Amazon, Jumia, Zara, Shopify stores."
+        description="Define a focused watch. Works with any public URL worldwide - Amazon, Jumia, Zara, Etsy, Shopify stores."
         action={
           <span style={{ fontSize: 10, padding: '4px 10px', background: '#2dd4bf', borderRadius: 20, color: '#000', fontWeight: 700 }}>
             LIVE MODE
@@ -475,7 +477,7 @@ export function NewMonitorPage() {
       <div className="form-shell">
         <form className="card form-card" onSubmit={submit} noValidate>
           <div className="callout" style={{ marginBottom: 24, background: 'rgba(45,212,191,0.1)', borderColor: 'rgba(45,212,191,0.3)' }}>
-            <strong>Live checks enabled.</strong> New monitors run real website checks and save to Supabase. International URLs supported.
+            <strong>Live checks enabled.</strong> New monitors run real website checks. International URLs supported.
           </div>
           <div className="field">
             <label htmlFor="monitor-name">Monitor Name</label>
@@ -534,8 +536,8 @@ export function NewMonitorPage() {
             <Link href="/monitors" className="btn btn-ghost" data-testid="button-cancel-monitor">
               <X size={14} /> Cancel
             </Link>
-            <button className="btn btn-primary" type="submit" data-testid="button-create-monitor">
-              <Check size={14} /> Create live monitor
+            <button type="submit" className="btn btn-primary" data-testid="button-save-monitor">
+              <Check size={14} /> Save monitor
             </button>
           </div>
         </form>
@@ -546,139 +548,151 @@ export function NewMonitorPage() {
 
 export function MonitorDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { getMonitor, changes, toggleMonitorStatus, checkMonitor } = useDemoData();
-  const [isChecking, setIsChecking] = useState(false);
-  const [checkFeedback, setCheckFeedback] = useState<{ success: boolean; message: string } | null>(null);
+  const { monitors, changes, toggleMonitorStatus, checkMonitor } = useDemoData();
+  const [checking, setChecking] = useState(false);
+  const [checkResult, setCheckResult] = useState<{ success?: boolean; message?: string } | null>(null);
 
-  const monitor = getMonitor(id);
-  if (!monitor) return <InvalidState title="Monitor not found" copy="This monitor does not exist." href="/monitors" label="Back to monitors" />;
+  const monitor = monitors.find((m) => m.id === id);
+  const monitorChanges = changes.filter((c) => c.monitorId === id);
 
-  const runCheck = async () => {
-    setIsChecking(true);
-    setCheckFeedback(null);
-    try {
-      const result = await checkMonitor(monitor.id);
-      setCheckFeedback({ success: result.success, message: result.message });
-    } catch {
-      setCheckFeedback({ success: false, message: 'Check failed. Try again.' });
-    } finally {
-      setIsChecking(false);
-    }
+  if (!monitor) {
+    return (
+      <InvalidState
+        title="Monitor not found"
+        copy="The requested monitor does not exist or has been removed."
+        href="/monitors"
+        label="Back to Monitors"
+      />
+    );
+  }
+
+  const handleLiveCheck = async () => {
+    setChecking(true);
+    setCheckResult(null);
+    const res = await checkMonitor(monitor.id);
+    setCheckResult(res);
+    setChecking(false);
   };
-
-  const monitorChanges = changes
-    .filter((change) => change.monitorId === monitor.id)
-    .sort((a, b) => +new Date(b.detectedAt) - +new Date(a.detectedAt));
 
   return (
     <AppPage>
-      <Link href="/monitors" className="btn btn-ghost btn-sm" style={{ marginBottom: 23 }} data-testid="link-back-monitors">
-        <ArrowLeft size={13} /> All monitors
-      </Link>
-      <div className="detail-header">
-        <div>
-          <div className="detail-title-row">
-            <h1 className="detail-title">{monitor.name}</h1>
-            <StatusBadge status={monitor.status} />
-            <DataSourceBadge source={monitor.checkSource} />
+      <PageIntro
+        eyebrow="Workspace / monitors / detail"
+        title={monitor.name}
+        description={`Monitoring target on ${monitor.checkSource}`}
+        action={
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={handleLiveCheck}
+              disabled={checking}
+              className="btn btn-primary btn-sm"
+              data-testid="button-check-now"
+            >
+              <RefreshCw size={14} className={checking ? 'spin' : ''} />
+              {checking ? 'Checking live...' : 'Check now (Live)'}
+            </button>
+            <button
+              onClick={() => toggleMonitorStatus(monitor.id)}
+              className="btn btn-ghost btn-sm"
+              data-testid="button-toggle-status"
+            >
+              {monitor.status === 'active' ? (
+                <>
+                  <Pause size={14} /> Pause
+                </>
+              ) : (
+                <>
+                  <Play size={14} /> Resume
+                </>
+              )}
+            </button>
           </div>
-          <a className="detail-url" href={monitor.websiteUrl} target="_blank" rel="noreferrer" data-testid="link-detail-source">
-            {monitor.websiteUrl} <ExternalLink size={10} style={{ display: 'inline' }} />
-          </a>
-        </div>
-        <div className="monitor-detail-actions">
-          <button className="btn btn-primary" type="button" onClick={runCheck} disabled={isChecking} data-testid="button-check-now">
-            {isChecking ? <RefreshCw size={14} className="spin" /> : <RefreshCw size={14} />}
-            {isChecking ? 'Checking…' : 'Check now (Live)'}
-          </button>
-          <button className="btn btn-ghost" type="button" onClick={() => toggleMonitorStatus(monitor.id)} data-testid="button-toggle-monitor">
-            {monitor.status === 'active' ? (
-              <>
-                <Pause size={14} /> Pause
-              </>
-            ) : (
-              <>
-                <Play size={14} /> Resume
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-      {checkFeedback && (
-        <div
-          className={`check-feedback${checkFeedback.success ? '' : ' error'}`}
-          role={checkFeedback.success ? 'status' : 'alert'}
-          data-testid="text-check-feedback"
+        }
+      />
+
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 20 }}>
+        <StatusBadge status={monitor.status} />
+        <DataSourceBadge source={monitor.checkSource} />
+        <a
+          href={monitor.websiteUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="mono"
+          style={{ fontSize: 12, color: 'var(--dim)', wordBreak: 'break-all' }}
         >
-          {checkFeedback.message}
+          {monitor.websiteUrl} <ExternalLink size={10} style={{ display: 'inline' }} />
+        </a>
+      </div>
+
+      {checkResult && (
+        <div
+          className={`callout ${checkResult.success ? 'callout-success' : 'callout-error'}`}
+          style={{
+            marginBottom: 20,
+            padding: '12px 16px',
+            borderRadius: 8,
+            background: checkResult.success ? 'rgba(45, 212, 191, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+            borderColor: checkResult.success ? 'rgba(45, 212, 191, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+            color: checkResult.success ? '#2dd4bf' : '#f87171',
+          }}
+        >
+          {checkResult.message}
         </div>
       )}
-      <div className="detail-grid">
+
+      <div className="dashboard-grid" style={{ marginTop: 20 }}>
         <section className="card card-pad">
           <div className="section-heading">
             <h2>Live Change history</h2>
             <span>{monitorChanges.length} signals</span>
           </div>
           {monitorChanges.length === 0 ? (
-            <EmptyState title="No changes yet." copy="Run a live check to establish baseline." />
+            <EmptyState
+              title="No changes yet"
+              copy="Run a live check to establish baseline."
+            />
           ) : (
-            monitorChanges.map((change) => (
-              <div className="history-item" key={change.id}>
-                <div className="history-top">
-                  <Link href={`/changes/${change.id}`} className="history-title" data-testid={`link-history-change-${change.id}`}>
-                    {change.title}
-                  </Link>
-                  <SeverityBadge severity={change.severity} />
-                </div>
-                <p className="history-description">{change.description}</p>
-                <div className="history-values">
-                  <div className="value-box">
-                    <span className="value-box-label">Previous</span>
-                    <span className="value-box-value">{change.oldValue}</span>
-                  </div>
-                  <div className="value-box">
-                    <span className="value-box-label">Current</span>
-                    <span className="value-box-value">{change.newValue}</span>
-                  </div>
-                </div>
-                <div className="signal-meta" style={{ marginTop: 12 }}>
-                  {formatDateTime(change.detectedAt)} · <DataSourceBadge source={change.dataSource} />
-                </div>
-              </div>
-            ))
+            <div className="signal-list">
+              {monitorChanges.map((change) => (
+                <SignalRow key={change.id} change={change} monitor={monitor} />
+              ))}
+            </div>
           )}
         </section>
+
         <aside className="card card-pad">
           <div className="section-heading">
             <h2>Monitor details</h2>
-            <span>Live</span>
+            <span className="mono" style={{ fontSize: 10, color: 'var(--dim)' }}>
+              LIVE
+            </span>
           </div>
-          <dl className="info-list">
-            <div className="info-line">
-              <dt>Type</dt>
-              <dd>{monitor.monitorType}</dd>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 16 }}>
+            <div>
+              <span className="fact-label">Monitor Type</span>
+              <div className="fact-value" style={{ marginTop: 4 }}>
+                {monitor.monitorType}
+              </div>
             </div>
-            <div className="info-line">
-              <dt>Status</dt>
-              <dd>{monitor.status}</dd>
+            <div>
+              <span className="fact-label">Last Value</span>
+              <div className="fact-value" style={{ marginTop: 4, fontSize: 18, color: '#2dd4bf', fontWeight: 700 }}>
+                {monitor.lastValue || 'Pending initial check'}
+              </div>
             </div>
-            <div className="info-line">
-              <dt>Last price</dt>
-              <dd>{monitor.lastValue ?? 'Not captured'}</dd>
+            <div>
+              <span className="fact-label">Last Checked</span>
+              <div className="fact-value" style={{ marginTop: 4 }}>
+                {formatDateTime(monitor.lastChecked)}
+              </div>
             </div>
-            <div className="info-line">
-              <dt>Created</dt>
-              <dd>{formatDate(monitor.createdAt)}</dd>
+            <div>
+              <span className="fact-label">Created At</span>
+              <div className="fact-value" style={{ marginTop: 4 }}>
+                {formatDate(monitor.createdAt)}
+              </div>
             </div>
-            <div className="info-line">
-              <dt>Last checked</dt>
-              <dd>{formatDateTime(monitor.lastChecked)}</dd>
-            </div>
-            <div className="info-line">
-              <dt>Website URL</dt>
-              <dd style={{ wordBreak: 'break-all' }}>{monitor.websiteUrl}</dd>
-            </div>
-          </dl>
+          </div>
         </aside>
       </div>
     </AppPage>
@@ -687,98 +701,100 @@ export function MonitorDetailPage() {
 
 export function ChangeDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { changes, getMonitor } = useDemoData();
+  const { changes, monitors } = useDemoData();
 
   const change = changes.find((c) => c.id === id);
-  if (!change) return <InvalidState title="Signal not found" copy="This signal or change event does not exist." href="/dashboard" label="Back to dashboard" />;
+  const monitor = change ? monitors.find((m) => m.id === change.monitorId) : undefined;
 
-  const monitor = getMonitor(change.monitorId);
+  if (!change) {
+    return (
+      <InvalidState
+        title="Signal not found"
+        copy="The detected change record does not exist or was cleared."
+        href="/dashboard"
+        label="Return to Dashboard"
+      />
+    );
+  }
 
   return (
     <AppPage>
-      <Link href="/dashboard" className="btn btn-ghost btn-sm" style={{ marginBottom: 20 }} data-testid="link-back-dashboard">
-        <ArrowLeft size={13} /> Dashboard
-      </Link>
-      <div className="detail-header">
-        <div>
-          <div className="detail-title-row">
-            <h1 className="detail-title">{change.title}</h1>
-            <SeverityBadge severity={change.severity} />
-            <DataSourceBadge source={change.dataSource} />
-          </div>
-          <p className="detail-copy" style={{ color: 'var(--dim)', marginTop: 4 }}>
-            {monitor ? `Monitor: ${monitor.name}` : 'Unknown Monitor'} · Detected {getTimeAgo(change.detectedAt)}
-          </p>
-        </div>
-        {monitor && (
-          <a href={monitor.websiteUrl} target="_blank" rel="noreferrer" className="btn btn-primary" data-testid="link-change-visit-source">
-            Visit Website <ExternalLink size={14} />
-          </a>
-        )}
+      <PageIntro
+        eyebrow="Workspace / changes / detail"
+        title={change.title}
+        description={change.description}
+        action={<SeverityBadge severity={change.severity} />}
+      />
+
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 20 }}>
+        <DataSourceBadge source={change.dataSource} />
+        <span className="mono" style={{ fontSize: 12, color: 'var(--dim)' }}>
+          Detected {formatDateTime(change.detectedAt)} ({getTimeAgo(change.detectedAt)})
+        </span>
       </div>
 
-      <div className="detail-grid">
+      <div className="dashboard-grid" style={{ marginTop: 20 }}>
         <section className="card card-pad">
           <div className="section-heading">
-            <h2>Signal Details</h2>
-            <span>{formatDateTime(change.detectedAt)}</span>
+            <h2>Value Shift</h2>
           </div>
-          <p className="history-description" style={{ fontSize: 15, marginBottom: 20 }}>
-            {change.description}
-          </p>
-
-          <div className="history-values">
-            <div className="value-box">
-              <span className="value-box-label">Old Value</span>
-              <span className="value-box-value">{change.oldValue}</span>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 16,
+              padding: '20px 0',
+            }}
+          >
+            <div style={{ padding: 16, borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
+              <span className="fact-label">Previous Value</span>
+              <div style={{ fontSize: 20, fontWeight: 700, marginTop: 8, color: 'var(--dim)' }}>
+                {change.oldValue}
+              </div>
             </div>
-            <div className="value-box" style={{ borderColor: '#2dd4bf' }}>
-              <span className="value-box-label">New Detected Value</span>
-              <span className="value-box-value" style={{ color: '#2dd4bf' }}>
+            <div style={{ padding: 16, borderRadius: 8, background: 'rgba(45,212,191,0.05)', border: '1px solid rgba(45,212,191,0.3)' }}>
+              <span className="fact-label" style={{ color: '#2dd4bf' }}>New Detected Value</span>
+              <div style={{ fontSize: 20, fontWeight: 700, marginTop: 8, color: '#2dd4bf' }}>
                 {change.newValue}
-              </span>
+              </div>
             </div>
           </div>
         </section>
 
         <aside className="card card-pad">
           <div className="section-heading">
-            <h2>Associated Monitor</h2>
+            <h2>Source Monitor</h2>
           </div>
           {monitor ? (
-            <dl className="info-list">
-              <div className="info-line">
-                <dt>Name</dt>
-                <dd>{monitor.name}</dd>
-              </div>
-              <div className="info-line">
-                <dt>Type</dt>
-                <dd>{monitor.monitorType}</dd>
-              </div>
-              <div className="info-line">
-                <dt>Status</dt>
-                <dd>
-                  <StatusBadge status={monitor.status} />
-                </dd>
-              </div>
-              <div className="info-line" style={{ marginTop: 16 }}>
-                <Link href={`/monitors/${monitor.id}`} className="btn btn-ghost btn-sm" style={{ width: '100%' }} data-testid="link-view-associated-monitor">
-                  View Monitor Details <ChevronRight size={13} />
-                </Link>
-              </div>
-            </dl>
+            <div style={{ marginTop: 16 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 600 }}>{monitor.name}</h3>
+              <p className="mono" style={{ fontSize: 12, color: 'var(--dim)', marginTop: 4, wordBreak: 'break-all' }}>
+                {monitor.websiteUrl}
+              </p>
+              <Link
+                href={`/monitors/${monitor.id}`}
+                className="btn btn-ghost btn-sm"
+                style={{ marginTop: 16 }}
+                data-testid="link-change-source-monitor"
+              >
+                View monitor details <ArrowRight size={13} />
+              </Link>
+            </div>
           ) : (
-            <p style={{ color: 'var(--dim)' }}>No associated monitor found.</p>
+            <p style={{ marginTop: 16, color: 'var(--dim)' }}>Monitor details not available.</p>
           )}
         </aside>
       </div>
     </AppPage>
   );
 }
-// --- Alerts & 404 Pages ---
 
 export function AlertsPage() {
   const { changes, monitors } = useDemoData();
+  const sortedChanges = useMemo(() => {
+    return changes.slice().sort((a, b) => +new Date(b.detectedAt) - +new Date(a.detectedAt));
+  }, [changes]);
+
   return (
     <AppPage>
       <PageIntro
@@ -790,11 +806,11 @@ export function AlertsPage() {
         <div className="section-heading" style={{ marginBottom: 16 }}>
           <h2>All Detected Signals ({changes.length})</h2>
         </div>
-        {changes.length === 0 ? (
+        {sortedChanges.length === 0 ? (
           <EmptyState title="No alerts yet" copy="When a monitor detects a price or status change, it will show up here." />
         ) : (
           <div className="signal-list">
-            {changes.map((change) => (
+            {sortedChanges.map((change) => (
               <SignalRow key={change.id} change={change} monitor={monitors.find((m) => m.id === change.monitorId)} />
             ))}
           </div>
