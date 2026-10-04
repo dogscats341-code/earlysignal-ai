@@ -4,7 +4,7 @@ import {
   AppShell,
   DataSourceBadge,
   EmptyState,
-  InvalidState,
+  DemoBadge,
   PageIntro,
   SeverityBadge,
   StatusBadge,
