@@ -491,8 +491,28 @@ export function AlertsPage() {
 // --- 404 Not Found Page ---
 export function NotFoundPage() {
   return (
-    <AppShell>
-      <InvalidState title="404 - Page Not Found" copy="The requested route does not exist." href="/dashboard" label="Return to Dashboard" />
-    </AppShell>
+    <AppPage>
+      <div className="card card-pad" style={{ marginTop: 40, textAlign: 'center', padding: '60px 20px' }}>
+        <h1 style={{ fontSize: '2rem', marginBottom: '12px' }}>404 - Page Not Found</h1>
+        <p style={{ color: '#888', marginBottom: '24px' }}>
+          The page you are looking for does not exist or has been moved.
+        </p>
+        <a 
+          href="/dashboard" 
+          style={{ 
+            display: 'inline-block', 
+            padding: '10px 20px', 
+            borderRadius: '6px', 
+            background: '#10b981', 
+            color: '#fff', 
+            textDecoration: 'none', 
+            fontWeight: 600 
+          }}
+        >
+          Return to Dashboard
+        </a>
+      </div>
+    </AppPage>
   );
 }
+
