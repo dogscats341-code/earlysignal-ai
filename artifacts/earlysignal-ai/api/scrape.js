@@ -16,69 +16,86 @@ export default async function handler(req, res) {
   }
 
   const { url } = req.body || {};
-
   if (!url || typeof url !== 'string') {
     return res.status(400).json({ success: false, error: 'URL is required' });
   }
 
   try {
-    // 1. Cleaning & Sanitizing target URL (Crucial for Etsy & Amazon bypass)
-    const targetUrl = cleanTargetUrl(url);
-    const parsedUrl = new URL(targetUrl);
-    const hostname = parsedUrl.hostname.replace('www.', '');
+    const parsedUrl = new URL(url);
+    const hostname = parsedUrl.hostname.replace('www.', '').toUpperCase();
 
-    const headers = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.9,fr;q=0.8',
-      'Cache-Control': 'no-cache',
-      'Pragma': 'no-cache',
-      'Sec-Ch-Ua': '"Google Chrome";v="123", "Not:A-Brand";v="8"',
-      'Sec-Ch-Ua-Mobile': '?0',
-      'Sec-Ch-Ua-Platform': '"Windows"',
-      'Sec-Fetch-Dest': 'document',
-      'Sec-Fetch-Mode': 'navigate',
-      'Sec-Fetch-Site': 'none',
-      'Sec-Fetch-User': '?1',
-      'Upgrade-Insecure-Requests': '1',
-    };
+    const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 
-    const response = await fetch(targetUrl, { method: 'GET', headers, redirect: 'follow' });
+    // 1. Attempt Direct Fetch
+    let html = null;
+    let isProxied = false;
 
-    if (response.status === 403 || response.status === 503) {
-      // Etsy API / oEmbed Fallback if Cloudflare blocks HTML page
-      if (hostname.includes('etsy')) {
-        const etsyData = await fetchEtsyOembed(targetUrl);
-        if (etsyData) {
-          return res.status(200).json({ success: true, data: etsyData });
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'User-Agent': userAgent,
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Cache-Control': 'no-cache',
+        },
+      });
+
+      if (response.ok) {
+        html = await response.text();
+      }
+    } catch (e) {
+      // Direct fetch failed
+    }
+
+    // 2. Fallback Proxy Fetch (Bypasses Cloudflare / Etsy / Amazon blocks on Vercel IPs)
+    if (!html || html.includes('Just a moment...') || html.includes('403 Forbidden')) {
+      const proxyEndpoints = [
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+        `https://corsproxy.io/?${encodeURIComponent(url)}`,
+      ];
+
+      for (const proxyUrl of proxyEndpoints) {
+        try {
+          const proxyRes = await fetch(proxyUrl, {
+            headers: { 'User-Agent': userAgent },
+          });
+          if (proxyRes.ok) {
+            const text = await proxyRes.text();
+            if (text && text.length > 500 && !text.includes('Enable JavaScript')) {
+              html = text;
+              isProxied = true;
+              break;
+            }
+          }
+        } catch (err) {
+          // Try next proxy
         }
       }
+    }
 
+    if (!html) {
       return res.status(200).json({
         success: false,
-        data: { price: 'BLOCKED', hostname, source: `${hostname} Live`, error: 'Website anti-bot protection active' },
+        data: {
+          price: 'BLOCKED',
+          hostname,
+          source: `${hostname} LIVE`,
+          error: 'Website anti-bot protection blocked all attempts',
+        },
       });
     }
 
-    if (!response.ok) {
-      return res.status(200).json({
-        success: false,
-        data: { price: 'HTTP ERROR', hostname, source: `${hostname} Live` },
-      });
-    }
+    // 3. Extract Price
+    const price = extractPriceFromHTML(html, hostname);
 
-    const html = await response.text();
-    const result = extractPriceDetails(html, hostname);
-
-    if (result && result.price) {
+    if (price) {
       return res.status(200).json({
         success: true,
         data: {
-          price: result.price,
-          originalPrice: result.originalPrice || null,
-          discount: result.discount || null,
+          price,
           hostname,
-          source: `${hostname} Live`,
+          source: `${hostname} LIVE`,
           checkedAt: new Date().toISOString(),
         },
       });
@@ -86,60 +103,23 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       success: false,
-      data: { price: 'NOT FOUND', hostname, source: `${hostname} Live` },
+      data: {
+        price: 'NOT FOUND',
+        hostname,
+        source: `${hostname} LIVE`,
+        error: 'Could not parse price element',
+      },
     });
   } catch (err) {
-    return res.status(500).json({ success: false, error: err.message || 'Scraper error' });
+    return res.status(500).json({
+      success: false,
+      error: err.message || 'Scraper Execution Error',
+    });
   }
 }
 
-// Strip useless tracking parameters that trigger anti-bot blocks
-function cleanTargetUrl(rawUrl) {
-  try {
-    const u = new URL(rawUrl);
-    if (u.hostname.includes('etsy')) {
-      const listingMatch = u.pathname.match(/\/listing\/(\d+)/);
-      if (listingMatch) {
-        return `https://www.etsy.com/listing/${listingMatch[1]}`;
-      }
-    }
-    if (u.hostname.includes('amazon')) {
-      const dpMatch = u.pathname.match(/\/(dp|gp\/product)\/([A-Z0-9]{10})/i);
-      if (dpMatch) {
-        return `https://www.amazon.com/dp/${dpMatch[2]}`;
-      }
-    }
-    return `${u.origin}${u.pathname}`;
-  } catch {
-    return rawUrl;
-  }
-}
-
-// Fallback for Etsy using public oEmbed / JSON endpoint
-async function fetchEtsyOembed(cleanUrl) {
-  try {
-    const oembedUrl = `https://www.etsy.com/oembed?url=${encodeURIComponent(cleanUrl)}`;
-    const res = await fetch(oembedUrl);
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data && data.title) {
-      // Extract price from title or meta if available
-      const priceMatch = data.title.match(/(\$\d+[\.,]?\d*|\d+[\.,]?\d*\s*€|\d+[\.,]?\d*\s*DH)/i);
-      if (priceMatch) {
-        return {
-          price: priceMatch[0],
-          hostname: 'etsy.com',
-          source: 'etsy.com Live',
-          checkedAt: new Date().toISOString(),
-        };
-      }
-    }
-  } catch {}
-  return null;
-}
-
-function extractPriceDetails(html, hostname) {
-  // 1. JSON-LD Extraction
+function extractPriceFromHTML(html, hostname) {
+  // A. Etsy / Shopify / General JSON-LD
   const jsonLdMatches = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi);
   if (jsonLdMatches) {
     for (const match of jsonLdMatches) {
@@ -147,40 +127,58 @@ function extractPriceDetails(html, hostname) {
         const jsonContent = match.replace(/<script[^>]*>/i, '').replace(/<\/script>/i, '').trim();
         const data = JSON.parse(jsonContent);
         const items = Array.isArray(data) ? data : [data];
+
         for (const item of items) {
-          const offer = item?.offers || (item['@type'] === 'Product' ? item.offers : null);
-          if (offer) {
-            const single = Array.isArray(offer) ? offer[0] : offer;
-            if (single?.price) {
-              const currency = single.priceCurrency || (hostname.includes('.fr') ? '€' : '$');
-              return { price: `${single.price} ${currency}`.trim() };
+          const offers = item?.offers || (item['@type'] === 'Product' ? item.offers : null);
+          if (offers) {
+            const offer = Array.isArray(offers) ? offers[0] : offers;
+            if (offer?.price) {
+              const currency = offer.priceCurrency || '€';
+              return `${offer.price} ${currency}`.trim();
             }
           }
         }
-      } catch {}
+      } catch (e) {}
     }
   }
 
-  // 2. OpenGraph Meta Tags
-  const ogPrice = html.match(/property=["'](og:price:amount|product:price:amount)["']\s+content=["']([^"']+)["']/i);
-  if (ogPrice && ogPrice[2]) {
-    const currency = hostname.includes('.fr') ? '€' : '$';
-    return { price: `${ogPrice[2]} ${currency}` };
+  // B. OpenGraph & Meta Tags
+  const ogMatch = html.match(/property=["'](og:price:amount|product:price:amount)["']\s+content=["']([^"']+)["']/i) ||
+                  html.match(/content=["']([^"']+)["']\s+property=["'](og:price:amount|product:price:amount)["']/i);
+  if (ogMatch && ogMatch[2]) {
+    return `${ogMatch[2]} €`.trim();
   }
 
-  // 3. Etsy Fallback Regex
-  if (hostname.includes('etsy')) {
-    const etsyPrice = html.match(/<span class="[^"]*currency-value[^"]*">([^<]+)<\/span>/i) ||
-                       html.match(/class="[^"]*wt-text-title-03[^"]*">([^<]+)<\/p>/i);
-    if (etsyPrice && etsyPrice[1]) {
-      return { price: etsyPrice[1].trim() };
+  // C. Etsy Specific DOM Selectors
+  if (hostname.includes('ETSY')) {
+    const etsyRegexes = [
+      /class="[^"]*wt-text-title-03[^"]*">([^<]+)<\/p>/i,
+      /class="[^"]*currency-value[^"]*">([^<]+)<\/span>/i,
+      /"price":\s*"([^"]+)"/i,
+    ];
+    for (const regex of etsyRegexes) {
+      const match = html.match(regex);
+      if (match && match[1]) {
+        return match[1].trim();
+      }
     }
   }
 
-  // 4. Regex General Fallback
-  const match = html.match(/(\$\d+[\.,]\d{2}|\d+[\.,]\d{2}\s*€|\d+[\.,]\d{2}\s*DH)/i);
-  if (match) {
-    return { price: match[0].trim() };
+  // D. Amazon Specific Selectors
+  if (hostname.includes('AMAZON')) {
+    const amazonOffscreen = html.match(/<span class="a-offscreen">([^<]+)<\/span>/i);
+    if (amazonOffscreen && amazonOffscreen[1]) {
+      return amazonOffscreen[1].trim();
+    }
+  }
+
+  // E. Regex Fallback for Currency formats (€ / DH / $)
+  const generalRegex = [/(\d+[\.,]\d{2})\s*(€|EUR|DH|MAD|\$)/i, /(€|EUR|DH|MAD|\$)\s*(\d+[\.,]\d{2})/i];
+  for (const regex of generalRegex) {
+    const match = html.match(regex);
+    if (match) {
+      return match[0].trim();
+    }
   }
 
   return null;
